@@ -1,0 +1,56 @@
+TO DO
+
+
+* Exception handling for thread starting in UpdateCandles
+
+* Strategies - Move all strategy decision to the strategy class to which it pertains (volume checks,
+  time since monitoring, ...) 
+
+* Strategies - Action to be taken only if enough money available (Balance > min_trade) 
+
+* Strategies - Full configuration in file (wait times, volume multiplications, ...) - Possibly one
+  file per strategy   
+
+* Strategies - Every strategy to be initialized with default settings, which are over-ridden by file
+  config 
+
+* Strategies - Load config file separately, should make it easier to set have orders called with
+  non-hard coded parameters 
+
+* Strategies - Add thread safety and more so there's no need for the candle updates to t.join()
+  ... app can continue to run without micro freezes 
+
+* Pump 'n' Dump will get triggered even after 1hr of the actual pump if the monitoring was below
+  threshold (could happen that the last 1hr vol is still greater than previous day avg hourly vol) -
+  This is not desired behaviour 
+
+* Logging config to be read from file, not hard coded into code
+
+* Clean up - Unused config settings (two settings mainly - "trades_per_tick" and
+  "strategy_reset_interval") 
+
+* Momentum strategy
+
+* Actions/order to take rates as input so it can be reused (market buy/limit sell requires a limit
+  for the sell... not hardcoded) 
+
+* trader.py: UpdateMarketCandles takes tick interval and time frame as inputs, but that's pointless
+  as implemented. Should make it truly dependent.  
+
+* notification.py: Remove the "oneline/header/footer" methods from the various Notification
+  sub-classes (Info/Success/Alert/Error) 
+
+* "Pause" button to become "Resume" button after clicking it (On trader notification screen)
+
+* Write a proper "requirements" and/or "instructions" file
+
+------------------------------------------------------------------------------------------------------------------------------------------------------
+
+taylor
+comidia
+ld-dark
+
+dark-laptop
+hober
+taming-mr-arenson
+tty-dark

@@ -1,0 +1,424 @@
+import os
+import json
+
+import logging
+from threading import currentThread
+log = logging.getLogger(__name__)
+
+from kivy.app import App
+
+from .market_data import MarketData
+from .notification import *
+from .action import Action
+from .candlesticks import CandleSticks
+
+from pprint import pprint as pp
+from builtins import int
+# from idlelib.debugger_r import gui_adap_oid
+
+import datetime
+
+
+
+TICKINTERVAL_ONEMIN = 'oneMin'
+TICKINTERVAL_FIVEMIN = 'fiveMin'
+TICKINTERVAL_HOUR = 'hour'
+TICKINTERVAL_THIRTYMIN = 'thirtyMin'
+TICKINTERVAL_DAY = 'Day'
+
+
+class Market(object):
+    #===========================================================================
+    # This class accepts the data from the Trader object at each tick and processes 
+    # it into the various objects which generate orders and actions
+    #===========================================================================
+
+
+#    def __init__(self, name, data):
+    def __init__(self, marketSummaryData, appConfig):
+        #=======================================================================
+        # Sets initial parameters, calls getConfig to parse config file
+        # 
+        # :param name: (String) The minimal abbreviation which is given by Bittrex for the market
+        # :param data: (List) The initial data passed in by the trader during the initializing API call
+        # :param appConfig: (dict) The configuration dictionary, which contains market specific configuration 
+        #=======================================================================
+        #
+        #
+        # Set the currency name
+        self.name = marketSummaryData["Currency"]["Currency"]
+        # Set default market short name
+        self.abbr = marketSummaryData["BitcoinMarket"]["MarketName"]
+        # Get configuration, with overrides for this market 
+        self.config = self.getConfig(appConfig)
+        # Instantiate market data object
+        self.marketData = MarketData(marketSummaryData)
+        # Set candles object to none
+        self.candles = None
+        # Initialize trade time at 2000-01-01, 00:00
+        self.lastTradeTime = datetime.datetime(2000, 1, 1, 0, 0, 0)
+        # Market initialization timestamp
+        self.initTimeStamp = datetime.datetime.now()
+        
+        
+        # :FIX ME: Used in notification.py where it calls market.checkUpToDate to update the GUI
+        # Leaving for now, but should be removed...
+        self.isMonitored = True
+
+
+
+
+    def __repr__(self):
+        return "<mkt: "+self.name+" object at "+hex(id(self))+">"
+    def __str__(self):
+        return "<mkt: "+self.name+" object at "+hex(id(self))+">"
+    def __unicode__(self):
+        return "<"+self.name+":: mkt object at "+hex(id(self))+">"
+
+
+
+    def canTrade(self):
+        #=======================================================================
+        # Enforces two conditions:
+        #    1:   The last trade was executed at least 24hrs ago
+        #         (Avoids wash trades on the same signal)
+        #    2:   The market has been monitored for at least one hour
+        #         (Avoids catching the late action in the pump because the market
+        #          is so low volume that only the late part of the pump brings it
+        #          over the volume detection threshold. Also avoids a market 
+        #          dropping out of monitoring shortly after the pump, then back in
+        #          and trade again on the same signal.)
+        #
+        # :returns: Bool, if market can be traded or not 
+        #=======================================================================
+        _canTrade = False
+        timeNow = datetime.datetime.now()
+        # Get elapsed time since last trade
+        lastTradeTimeDelta = timeNow - self.lastTradeTime 
+        log.debug("Market: " + self.name + ", Seconds elapsed since last trade: " + str(lastTradeTimeDelta.days*86400 + lastTradeTimeDelta.seconds))
+        # If more than one day, good to go
+        if lastTradeTimeDelta.days*86400 + lastTradeTimeDelta.seconds > 86400:
+            _canTrade = True
+        
+        # Check for time being monitored
+        monitorDelta = timeNow - self.initTimeStamp
+        log.debug("Market: " + self.name + ", Seconds since monitoring: " + str(monitorDelta.days*86400 + monitorDelta.seconds))
+        if monitorDelta.days*86400 + monitorDelta.seconds < 3600:
+            _canTrade = False
+
+        return _canTrade
+
+    def resetLastTradeTime(self):
+        #=======================================================================
+        # Resets the time of the last trade
+        # 
+        # returns: N/A
+        #=======================================================================
+        # print("\nResetting last Trade!!!")
+        self.lastTradeTime = datetime.datetime.now()
+
+
+
+    def bid(self):
+        #=======================================================================
+        # :returns: Double - The current bid price 
+        #=======================================================================
+        return self.marketData.bid()
+    
+    def ask(self):
+        #=======================================================================
+        # :returns: Double - The current ask price 
+        #=======================================================================
+        return self.marketData.ask()
+
+    def last(self):
+        #=======================================================================
+        # :returns: Double - The last price at which a trade has been executed
+        #=======================================================================
+        return self.marketData.last()
+
+    def high(self):
+        #=======================================================================
+        # :returns: Double - The 24hr high 
+        #=======================================================================
+        return self.marketData.high()
+
+    def low(self):
+        #=======================================================================
+        # :returns: Double - The 24hr low 
+        #=======================================================================
+        return self.marketData.low()
+
+    def prevDay(self):
+        #=======================================================================
+        # :returns: Double - The price 24hrs ago
+        #=======================================================================
+        return self.marketData.prevDay()
+
+    def baseVolume(self):
+        #=======================================================================
+        # :returns: Double - 24 volume (in bitcoin)
+        #=======================================================================
+        return self.marketData.baseVolume()
+
+
+
+    def totalBalance(self):
+        #=======================================================================
+        # :returns: Double - Total balance for the market
+        #=======================================================================
+        return self.marketData.totalBalance()
+    
+    def availableBalance(self):
+        #=======================================================================
+        # :returns: Double - Available balance for the market (available to trade, not locked up in trades)
+        #=======================================================================
+        return self.marketData.availableBalance()
+    
+    def pendingBalance(self):
+        #=======================================================================
+        # :returns: Double - Pending balance
+        #=======================================================================
+        return self.marketData.pendingBalance()
+    
+
+    def volumeLastHr(self):
+        #=======================================================================
+        # :returns: Double - The volume traded over the last hour 
+        #=======================================================================
+        if self.candles is not None:
+            return self.candles.volumeLastHr()
+        else:
+            return 0.
+    
+    def avgVolPerHourPreviousDay(self):
+        #=======================================================================
+        # :return: Double - The average hourly volume traded over the past day  
+        #=======================================================================
+        if self.candles is not None:
+            return self.candles.avgVolPerHourPreviousDay()
+        else:
+            return 0.
+
+    def lastOpen(self):
+        #=======================================================================
+        # :return: Double - The open price during the last tickInterval
+        #=======================================================================
+        if self.candles is not None:
+            return self.candles.lastOpen()
+        else:
+            return 0.
+
+    def lastClose(self):
+        #=======================================================================
+        # :returns: Double - The close price during the last tickInterval
+        # CAVEAT: This is ill defined as the tick interval is still ongoing...
+        #=======================================================================
+        if self.candles is not None:
+            return self.candles.lastClose()
+        else:
+            return 0.
+
+    def lastHigh(self):
+        #=======================================================================
+        # :returns: Double - The high price during the last tickInterval
+        #=======================================================================
+        if self.candles is not None:
+            return self.candles.lastHigh()
+        else:
+            return 0.
+
+    def lastLow(self):
+        #=======================================================================
+        # :returns: Double - The low price during the last tickInterval
+        #=======================================================================
+        if self.candles is not None:
+            return self.candles.lastLow()
+        else:
+            return 0.
+
+    def previousDayLastOpen(self):
+        #=======================================================================
+        # :returns: Double - The open price of the last tick interval during the previous day
+        #=======================================================================
+        if self.candles is not None:
+            return self.candles.previousDayLastOpen()
+        else:
+            return 0.
+
+    def previousDayLastClose(self):
+        #=======================================================================
+        # :returns: Double - The close price of the last tick interval during the previous day
+        #=======================================================================
+        if self.candles is not None:
+            return self.candles.previousDayLastClose()
+        else:
+            return 0.
+
+    def previousDayLastHigh(self):
+        #=======================================================================
+        # :returns: Double - The high price of the last tick interval during the previous day
+        #=======================================================================
+        if self.candles is not None:
+            return self.candles.previousDayLastHigh()
+        else:
+            return 0.
+
+    def previousDayLastLow(self):
+        #=======================================================================
+        # :returns: Double - The low price of the last tick interval during the previous day
+        #=======================================================================
+        if self.candles is not None:
+            return self.candles.previousDayLastLow()
+        else:
+            return 0.
+
+
+
+
+    def updateCandles(self, api, totalTimeFrame=24, tickInterval=30):
+        #=======================================================================
+        # Creates candlesticks object if does not exist, or updates current one with newest data
+        # 
+        # :param data: response from API calls
+        #=======================================================================
+        # Get current thread ID
+        threadID = currentThread().ident
+        # Candles have been initialized previously
+        if self.candles is not None:
+            # API query - Last candle
+            #pp("Updating candlesticks for market " + self.name)
+            lastCandle = api.get_latest_candle(self.abbr, TICKINTERVAL_THIRTYMIN)
+            if lastCandle["success"] == True:
+                
+                #===============================================================
+                # print(datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S") + 
+                #       ": Market {:>9}".format(self.abbr) + " updating last candle:" +
+                #       ", Last High= {:10.8f}".format(lastCandle["result"][0]["H"]) +
+                #       ", Last Vol= {:20.8f}".format(lastCandle["result"][0]["V"]) +
+                #       ", Timestamp= " + lastCandle["result"][0]["T"])
+                #===============================================================
+
+                log.debug("Update for market {:>9}".format(self.abbr) +
+                          ", Thread ID: {:>5}".format(str(threadID)) +
+                          ", Last candle: " + str(lastCandle["result"]))
+
+                self.candles.updateCandles(lastCandle["result"][0])
+            else:
+                self.guiNotify("Alert", "Candles update (" + self.abbr + "): API_RESPONSE_MISS")
+        # First time updating candles
+        else:
+            # API query - All candles
+            allCandles = api.get_candles(self.abbr, TICKINTERVAL_THIRTYMIN)
+            if allCandles["success"] == True:
+                log.debug("Update for market {:>9}".format(self.abbr) +
+                          ", Thread ID: {:>5}".format(str(threadID)) +
+                          ", All Candles: " + str(allCandles['result']))
+                
+                self.candles = CandleSticks(allCandles["result"], totalTimeFrame, tickInterval)
+            else:
+                self.guiNotify("Alert", "API_RESPONSE_MISS")
+        
+
+    def updateMarketData(self, marketData):
+        #=======================================================================
+        # Updates the market data (object) for this market
+        # 
+        # :param data: response from API calls
+        #=======================================================================
+        if marketData is not None:
+            self.marketData.update(marketData)
+
+
+    def getConfig(self, appConfig):
+        #=======================================================================
+        # Returns an array with all the trader-general configurations replaced with 
+        # the parameters specific to this market set in the config file
+        #
+        # :returns: (Dictionary[Dictionary]) The config array
+        #=======================================================================
+        config = {}
+        if appConfig["currencies"].get(self.name, False):
+            for key, value in appConfig.items():
+                if key != "currencies" and key != "strategies":
+                    config[key] = value
+            for key, value in appConfig["currencies"][self.name].items():
+                config[key] = value
+        else:
+            config = appConfig
+        return config
+
+
+
+    def checkUpToDate(self):
+        #=======================================================================
+        # Checks to determine whether market will have currently up-to-date data
+        # :returns: (Boolean) Whether Market is currently updated
+        #=======================================================================
+        return self.isMonitored
+
+
+
+
+     
+    def guiNotify(self, msgType, guiMessage):
+    #===========================================================================
+    # Function to to update the market monitoring status on the GUI
+    # Will either display a success or an alert
+    # 
+    # :guiMessage:    - The type of alert to display
+    # 
+    # :returns:       - None
+    #===========================================================================
+        # Success action
+        if msgType == "Success":
+            Success(guiMessage, self)
+    
+        # Alert action
+        elif msgType == "Alert":
+            Alert(guiMessage, self)
+        
+        #Notify something odd is happening... should not happen
+        else:
+            Error("Uh-Oh", self)
+
+
+
+
+    def notify(self, noteType, **kwargs):
+        """
+        Alias for Info(_, market)
+        :returns: (Info(Notification))
+        """
+        return Info(noteType, self, kwargs)
+
+    def success(self, noteType, **kwar):
+        """
+        Alias for Success(_, market)
+        :returns: (Success(Notification))
+        """
+        return Success(noteType, self)
+
+    def error(self, noteType):
+        """
+        Alias for Error(_, market)
+        :returns: (Error(Notification))
+        """
+        return Error(noteType, self)
+
+    def alert(self, noteType):
+        """
+        Alias for Alert(_, market)
+        :returns: (Alert(Notification))
+        """
+        return Alert(noteType, self)
+
+
+
+    def printVolumes(self):
+        if self.candles is not None:
+            pp("Average hourly volume over previous day: " + str(self.candles.avgVolPerHourPreviousDay()))
+            pp("Volume over last hour: " + str(self.candles.volumeLastHr()))
+            if self.candles.volumeLastHr() > 10*self.candles.avgVolPerHourPreviousDay():
+                self.guiNotify("Alert", "NOTIFY_TRADE_ALERT")
+

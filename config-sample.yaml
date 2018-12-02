@@ -1,0 +1,74 @@
+#
+# Rename file as "config.yaml"
+# Add appropriate keys in the fields below
+#
+---
+exchange :
+    bittrex :
+        key : FFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
+        secret : EEEEEEEEEEEEEEEEEEEEEEEEEEEEEE
+show_all : false                     # Whether to monitor all markets
+min_volume : 30			     # Minimum volume required to monitor market
+tick_period : 20                     # Time in seconds between ticks
+candles_timeframe : 24               # The candles "chart" will store data for this many hours 
+candles_singletick : 30              # Each candle in the "chart" will cover this
+		     		     # many minutes - DO NOT CHANGE, NOT FULL IMPLEMENTED PROPERLY 
+#
+#
+#
+currencies :                         # Other options above can be over-ridden here
+	   			     # and accessed via <market-instance>. config  Markets can be
+				     # manually turned off or on via the monitor key 
+    TUSD:
+        monitor : false
+    BCH :
+        strategies :                                # Currently not doing anything, may use in future
+            notifyTick :
+                run : false
+            TradeUpIfVolumeUp :
+                run : false
+    ETH :
+#        monitor : true
+        strategies :                                # Currently not doing anything, may use in future
+            TradeUpIfVolumeUp :
+                run : false
+        min_volume : 1000
+        max_trade_amount : 0.003
+        min_trade_amount : 0.001
+        max_trade_total: 0.00002
+    ADA :
+        strategies :                                # Currently not doing anything, may use in future
+            TradeUpIfVolumeUp :
+                run : false
+#
+#
+#
+live_trades : false                                 # Whether to actually execute live trades
+do_actions : true                                   # If set to true, actions are automatically
+	     					    # executed, if false, a button is given 	      
+trade_return : 0.05                                 # The expected return on a single trade
+	       					    # (Example: 0.1 = 10%. Means I'm trying to sell 10% higher) 	   
+max_trade_amount : 0.003                            # The most that can be traded at 1 time
+min_trade_amount : 0.001                            # The least that can be traded at 1 time
+max_trade_total : 0.004                             # The summed amount of open orders that can be
+		  				    # open at a given time per market 
+trades_per_tick : 10                                # NEEDS REVIEW/CLAENUP - Most likely not used
+strategy_reset_interval : 50000                     # The number of ticks before the strategy flags
+			  			    # reset (NEEDS REVIEW/CLAENUP - Most likely not used) 
+strategies :
+    notifyTick :
+        file : notify_tick.py
+        classname : NotifyTick
+        run : false
+#    TradeUpIfVolumeUp :
+#       file : trade_up_vol_up.py
+#        classname : TradeUpIfVolumeUp
+#        run : true
+#        volume_change_max_threshold : 0.0001        # The positive change in volume required to
+	 			       		     #  trigger the volume-change based strategies 
+#        volume_change_min_threshold : -0.001
+    PumpAndDumpExploit :
+        file : PumpAndDumpExploit.py
+        classname : PumpAndDumpExploit
+        run : true
+...

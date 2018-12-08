@@ -11,6 +11,7 @@ from .market import Market
 from .notification import *
 from .fakeapi import FakeAPI
 import threading
+import traceback
 import importlib.util
 
 from pprint import pprint as pp
@@ -90,6 +91,18 @@ class Trader(object):
         log.info("API calls: " + str(self.api.getApiCalls()))
     
 
+
+
+
+
+
+
+
+
+
+
+
+        
 
     def getActiveMarkets(self, exchangeResponse):
         #=======================================================================
@@ -176,7 +189,12 @@ class Trader(object):
             for marketName in self.markets:
                 t = threading.Thread(target=self.markets[marketName].updateCandles, args=[self.api, timeFrame, tickInterval])
                 threads.append(t)
-                t.start()
+                try:
+                    t.start()
+                except Exception as err:
+                    log.critical("Unhandled exception in 'trader.updateMarketCandles()' - Thread failure")
+                    # DUMP thread stack!
+                    log.critical(traceback.print_tb(err.__traceback__))
                 
             # Join the threads back up so the code only proceeds once they are all done
             for t in threads:

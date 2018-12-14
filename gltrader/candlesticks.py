@@ -8,17 +8,13 @@ import logging
 from threading import currentThread
 log = logging.getLogger(__name__)
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from pprint import pprint as pp
 from builtins import int
-from _datetime import timedelta
 from threading import currentThread
 from distutils.log import debug
 
-
-# Timestamps in candles are offset by 4hr vs EST
-EST_HOURS_OFFSET = 4
 
 HOURS_PER_DAY = 24
 MINUTES_PER_HOUR = 60
@@ -38,8 +34,6 @@ class CandleSticks:
     volumePrevDayHrAverage = 0
     #Last hour volume
     volumeLastHour = 0
-    # EST timestamp offset - seconds
-    timeOffsetEST = EST_HOURS_OFFSET * MINUTES_PER_HOUR * SECONDS_PER_MINUTE
 
     #Flag - Initialization OK?
     IsInitOK = False
@@ -60,7 +54,9 @@ class CandleSticks:
         #=======================================================================
 
         #Calculate then number of candles in the object
-        self.nrCandlesPerHour = int(MINUTES_PER_HOUR/tickInterval)
+        self.totalTimeFrame = totalTimeFrame
+        self.tickInterval = tickInterval
+        self.nrCandlesPerHour = int(MINUTES_PER_HOUR/self.tickInterval)
         self.nrCandlesPerDay = self.nrCandlesPerHour * HOURS_PER_DAY
         
         
@@ -87,10 +83,13 @@ class CandleSticks:
         
         # Calculate time frame of last hour candles
         # (Will generally be less than one hour as the last candle is still updating...)
-        timeOne = datetime.strptime(self.LastHourCandles[0]["T"],"%Y-%m-%dT%H:%M:%S")
-        # Now get hours - The timedelta is needed to account for time zone differences!
-        # The candles are timestamped at EST + 4
-        elapsedTime = (datetime.now() + timedelta(seconds=self.timeOffsetEST) - timeOne).seconds/SECONDS_PER_HOUR
+        timeNow = datetime.now()
+        self.lastHrCandleLocalTimestamp = datetime(timeNow.year, timeNow.month, timeNow.day,
+                                                   timeNow.hour - 1,
+                                                   tickInterval*(timeNow.minute // tickInterval),
+                                                   0, 0) + timedelta(minutes=tickInterval)
+        elapsedTime = (timeNow - self.lastHrCandleLocalTimestamp).seconds/SECONDS_PER_HOUR
+        
         # Finally, update the hourly average using the actual elapsed time
         self.volumeLastHour = self.GetAverageVolume(self.LastHourCandles, elapsedTime)
 
@@ -155,7 +154,6 @@ class CandleSticks:
                       ", Exception - candlesticks.previousDayLastClose()")
             return 999999999
             
-
     def previousDayLastHigh(self):
         #=======================================================================
         # :returns: Double - The high price of the last tick interval during the previous day
@@ -202,7 +200,7 @@ class CandleSticks:
             if self.LastHourCandles[-1]["T"] == lastCandle["T"]:
                 #Update last candle only
                 self.LastHourCandles[-1] = lastCandle
-                
+
             #All candles need updating
             else:
                 #=========================================
@@ -226,30 +224,18 @@ class CandleSticks:
                     #update last hourly candle
                     self.LastHourCandles[-1] = lastCandle
 
+                    # Update current hour
+                    self.lastHrCandleLocalTimestamp += timedelta(minutes=self.tickInterval)
+
                 except:
                     log.debug("Thread ID: " + str(currentThread().ident) + 
-                              ", Exception - candlesticks.updateCandles() - Replace all candles")
-                    log.debug("Data dump - PreviousDayCandles: " + str(self.PreviousDayCandles))
-                    log.debug("Data dump - LastHourCandles: " + str(self.LastHourCandles))
-                    
-
-                #===============================================================
-                # pp(self.LastHourCandles)
-                # print("Last hour candle timestamp: " + self.LastHourCandles[-1]["T"])
-                # print(" API last candle timestamp: " + lastCandle["T"])
-                # print()
-                #===============================================================
-                
-                
-                #===============================================================
-                # #Update total volume for last hour
-                # self.volumeLastHour = self.GetAverageVolume(self.LastHourCandles, 1)
-                #===============================================================
-
+                              ", Exception - candlesticks.updateCandles() - Replace all candles" +
+                              "\nData dump - PreviousDayCandles: " + str(self.PreviousDayCandles) + 
+                              "\nData dump - LastHourCandles: " + str(self.LastHourCandles))
 
             # Last step - Update hourly volume - See __init__ for logic in below calculation
-            timeOne = datetime.strptime(self.LastHourCandles[0]["T"],"%Y-%m-%dT%H:%M:%S")
-            elapsedTime = (datetime.now() + timedelta(seconds=self.timeOffsetEST) - timeOne).seconds/SECONDS_PER_HOUR
+            elapsedTime = (datetime.now() - self.lastHrCandleLocalTimestamp).seconds/SECONDS_PER_HOUR
+            log.debug("Elapsed time, in hours: " + str(elapsedTime))
 
             # Finally, update the hourly average using the actual elapsed time
             self.volumeLastHour = self.GetAverageVolume(self.LastHourCandles, elapsedTime)

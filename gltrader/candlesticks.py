@@ -253,12 +253,21 @@ class CandleSticks:
         # :return:    Average volume over 'timeframe'
         # :rtype:     double
         #=======================================================================
-        avgVolume = 0
-        for candle in candles:
-            avgVolume = avgVolume + candle["V"]
-        avgVolume = avgVolume/timeframe
-        
-        return avgVolume
+        if timeframe <= 0:
+            log.debug("Error in candlesticks.GetAverageVolume(self, candles, timeframe): 
+                      timeframe = " + timeframe + ", must be bigger than 0")
+            return -1
+        else if candles is None:
+            log.debug("Error in candlesticks.GetAverageVolume(self, candles, timeframe): 
+                      candles object is `None`")
+            return -1
+        else:
+            avgVolume = 0
+            for candle in candles:
+                avgVolume = avgVolume + candle["V"]
+            avgVolume = avgVolume/timeframe
+                
+            return avgVolume
     
     
     def initDummyCandles(self, nrCandles):

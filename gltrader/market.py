@@ -252,6 +252,148 @@ class Market(object):
             return 0.
 
 
+    #================================================================================================
+    #
+    # Set of methods that return a list with a time series of the various market metrics for a past
+    # period, e.g. previous day or past hour. (The list is ordered as first element is oldest, last
+    # element is most recent.) These methods are meant to be used for data analysis as part of a
+    # strategy, e.g. by detecting patterns in the last day.
+    #
+    # The following methods are provided:
+    #
+    # PREVIOUS DAY:
+    # - getAllPreviousDayOpens():       Time series of open prices for all candels during previous day
+    # - getAllPreviousDayCloses():      Time series of close prices for all candels during previous day
+    # - getAllPreviousDayLows():        Time series of low prices for all candels during previous day
+    # - getAllPreviousDayHighs():       Time series of high prices for all candels during previous day
+    # - getAllPreviousDayVolumes():     Time series of volumes for all candels during previous day
+    # - getAllPreviousDayBaseVolumes(): Time series of open prices for all candels during previous day
+    #
+    # LAST HOUR:
+    # - getAllLastHrOpens():       Time series of open prices for all candels during previous day
+    # - getAllLastHrCloses():      Time series of close prices for all candels during previous day
+    # - getAllLastHrLows():        Time series of low prices for all candels during previous day
+    # - getAllLastHrHighs():       Time series of high prices for all candels during previous day
+    # - getAllLastHrVolumes():     Time series of volumes for all candels during previous day
+    # - getAllLastHrBaseVolumes(): Time series of open prices for all candels during previous day
+    #
+    #================================================================================================
+
+    def getAllPreviousDayOpens(self):
+        #=======================================================================
+        # :returns: List - A list with all the open prices from all the previous day candles
+        #=======================================================================
+        if self.candles is not None:
+            return self.candles.getAllPreviousDayOpens()
+        else:
+            return [0]
+
+    def getAllPreviousDayCloses(self):
+        #=======================================================================
+        # :returns: List - A list with all the close prices from all the previous day candles
+        #=======================================================================
+        if self.candles is not None:
+            return self.candles.getAllPreviousDayCloses()
+        else:
+            return [0]
+
+    def getAllPreviousDayLows(self):
+        #=======================================================================
+        # :returns: List - A list with all the low prices from all the previous day candles
+        #=======================================================================
+        if self.candles is not None:
+            return self.candles.getAllPreviousDayLows()
+        else:
+            return [0]
+
+    def getAllPreviousDayHighs(self):
+        #=======================================================================
+        # :returns: List - A list with all the high prices from all the previous day candles
+        #=======================================================================
+        if self.candles is not None:
+            return self.candels.getAllPreviousDayHighs()
+        else:
+            return [0]
+
+    def getAllPreviousDayVolumes(self):
+        #=======================================================================
+        # :returns: List - A list with all the volumes from all the previous day candles
+        #=======================================================================
+        if self.candels is not None:
+            return self.candles.getAllPreviousDayVolumes()
+        else:
+            return [0]
+        
+    def getAllPreviousDayBaseVolumes(self):
+        #=======================================================================
+        # :returns: List - A list with all the base volumes from all the previous day candles
+        #=======================================================================
+        if self.candles is not None:
+            return self.candles.getAllPreviousDayBaseVolumes()
+        else:
+            return [0]
+
+    def getAllLastHrOpens(self):
+        #=======================================================================
+        # :returns: List - A list with all the open prices from all the last hour candles
+        #=======================================================================
+        if self.candles is not None:
+            return self.candles.getAllLastHrOpens()
+        else:
+            return [0]
+
+    def getAllLastHrCloses(self):
+        #=======================================================================
+        # :returns: List - A list with all the close prices from all the last hour candles
+        #=======================================================================
+        if self.candles is not None
+            return self.candles.getAllLastHrCloses()
+        else:
+            return [0]
+
+    def getAllLastHrLows(self):
+        #=======================================================================
+        # :returns: List - A list with all the low prices from all the last hour candles
+        #=======================================================================
+        if self.candles is not None:
+            return self.candles.getAllLastHrLows()
+        else:
+            return [0]
+
+    def getAllLastHrHighs(self):
+        #=======================================================================
+        # :returns: List - A list with all the high prices from all the last hour candles
+        #=======================================================================
+        if self.candles is not None:
+            return self.candles.getAllLastHrHighs()
+        else:
+            return [0]
+
+    def getAllLastHrVolumes(self):
+        #=======================================================================
+        # :returns: List - A list with all the volumes from all the last hour candles
+        #=======================================================================
+        if self.candles is not None:
+            return self.candles.getAllLastHrVolumes()
+        else:
+            return [0]
+
+    def getAllLastHourBaseVolume(self):
+        #=======================================================================
+        # :returns: List - A list with all the base volume from all the previous day candles
+        #=======================================================================
+        if self.candles is not None:
+            return self.candles.getAllLastHourBaseVolume()
+        else:
+            return [0]
+
+
+
+
+
+
+
+
 
 
 

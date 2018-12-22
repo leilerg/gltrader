@@ -96,14 +96,6 @@ class Trader(object):
 
 
 
-
-
-
-
-
-
-        
-
     def getActiveMarkets(self, exchangeResponse):
         #=======================================================================
         # Updates or constructs the dictionary of active markets
@@ -168,7 +160,6 @@ class Trader(object):
                 # Instantiate strategy
                 strat = strategy(self.markets[marketName], self.config)
                 # Execute strategy
-                # strat.run() - Interesting... doesn't work if I define a run(self) method, but works with execute(self)
                 strat.execute()
                 
             
@@ -187,18 +178,39 @@ class Trader(object):
             #===================================================================
             threads = []
             for marketName in self.markets:
-                t = threading.Thread(target=self.markets[marketName].updateCandles, args=[self.api, timeFrame, tickInterval])
+                t = threading.Thread(target=self.markets[marketName].updateCandles,
+                                     args=[self.api, timeFrame, tickInterval])
                 threads.append(t)
                 try:
                     t.start()
                 except Exception as err:
-                    log.critical("Unhandled exception in 'trader.updateMarketCandles()' - Thread failure")
+                    log.critical("Unhandled exception in 'trader.updateMarketCandles()'\n"+
+                                 "Thread failure, Traceback dump: " + traceback.print_tb(err.__traceback__))
                     # DUMP thread stack!
-                    log.critical(traceback.print_tb(err.__traceback__))
+                    log.exception(error)
                 
             # Join the threads back up so the code only proceeds once they are all done
             for t in threads:
                 t.join()
+
+
+    def getStrategies(self):
+        for strat_name, strat_cfg in self.config["strategies"].items():
+            # pp(strat_name)
+            # pp(strat_cfg)
+            if strat_cfg["run"]:
+                spec = importlib.util.spec_from_file_location(strat_name,
+                                                              os.path.join(os.environ['STRATEGIES_DIR'],
+                                                              strat_cfg["file"]))
+                strat_mod = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(strat_mod)
+                strat_class = getattr(strat_mod, strat_cfg["classname"])
+                self.strategies.append(strat_class)
+        #=======================================================================
+        # print("\n\n\n")
+        # pp("Strategies to run: ")
+        # pp(self.strategies)
+        #=======================================================================
 
 
     def _getMonitored(self, marketSummaryData, marketWasMonitored):
@@ -300,24 +312,6 @@ class Trader(object):
                 _wasMonitored = _wasMonitored or testMarketSummaryData["Currency"]["Currency"] == marketName
  
         return _wasMonitored
-
-    def getStrategies(self):
-        for strat_name, strat_cfg in self.config["strategies"].items():
-            # pp(strat_name)
-            # pp(strat_cfg)
-            if strat_cfg["run"]:
-                spec = importlib.util.spec_from_file_location(strat_name,
-                                                              os.path.join(os.environ['STRATEGIES_DIR'],
-                                                              strat_cfg["file"]))
-                strat_mod = importlib.util.module_from_spec(spec)
-                spec.loader.exec_module(strat_mod)
-                strat_class = getattr(strat_mod, strat_cfg["classname"])
-                self.strategies.append(strat_class)
-        #=======================================================================
-        # print("\n\n\n")
-        # pp("Strategies to run: ")
-        # pp(self.strategies)
-        #=======================================================================
 
     def getData(self):
         #=======================================================================

@@ -12,7 +12,6 @@ from .notification import *
 from .action import Action
 from .candlesticks import CandleSticks
 
-from pprint import pprint as pp
 from builtins import int
 # from idlelib.debugger_r import gui_adap_oid
 
@@ -34,7 +33,6 @@ class Market(object):
     #===========================================================================
 
 
-#    def __init__(self, name, data):
     def __init__(self, marketSummaryData, appConfig):
         #=======================================================================
         # Sets initial parameters, calls getConfig to parse config file
@@ -56,9 +54,9 @@ class Market(object):
         # Set candles object to none
         self.candles = None
         # Initialize trade time at 2000-01-01, 00:00
-        self.lastTradeTime = datetime.datetime(2000, 1, 1, 0, 0, 0)
+        self.lastTradeTimestamp = datetime.datetime(2000, 1, 1, 0, 0, 0)
         # Market initialization timestamp
-        self.initTimeStamp = datetime.datetime.now()
+        self.initializeTimestamp = datetime.datetime.now()
         
         
         # :FIX ME: Used in notification.py where it calls market.checkUpToDate to update the GUI
@@ -77,37 +75,6 @@ class Market(object):
 
 
 
-    def canTrade(self):
-        #=======================================================================
-        # Enforces two conditions:
-        #    1:   The last trade was executed at least 24hrs ago
-        #         (Avoids wash trades on the same signal)
-        #    2:   The market has been monitored for at least one hour
-        #         (Avoids catching the late action in the pump because the market
-        #          is so low volume that only the late part of the pump brings it
-        #          over the volume detection threshold. Also avoids a market 
-        #          dropping out of monitoring shortly after the pump, then back in
-        #          and trade again on the same signal.)
-        #
-        # :returns: Bool, if market can be traded or not 
-        #=======================================================================
-        _canTrade = False
-        timeNow = datetime.datetime.now()
-        # Get elapsed time since last trade
-        lastTradeTimeDelta = timeNow - self.lastTradeTime 
-        log.debug("Market: " + self.name + ", Seconds elapsed since last trade: " + str(lastTradeTimeDelta.days*86400 + lastTradeTimeDelta.seconds))
-        # If more than one day, good to go
-        if lastTradeTimeDelta.days*86400 + lastTradeTimeDelta.seconds > 86400:
-            _canTrade = True
-        
-        # Check for time being monitored
-        monitorDelta = timeNow - self.initTimeStamp
-        log.debug("Market: " + self.name + ", Seconds since monitoring: " + str(monitorDelta.days*86400 + monitorDelta.seconds))
-        if monitorDelta.days*86400 + monitorDelta.seconds < 3600:
-            _canTrade = False
-
-        return _canTrade
-
     def resetLastTradeTime(self):
         #=======================================================================
         # Resets the time of the last trade
@@ -115,8 +82,19 @@ class Market(object):
         # returns: N/A
         #=======================================================================
         # print("\nResetting last Trade!!!")
-        self.lastTradeTime = datetime.datetime.now()
+        self.lastTradeTimestamp = datetime.datetime.now()
 
+    def lastTradeTime(self):
+        #=======================================================================
+        # :returns: Timestamp - The last time at which a trade occurred
+        #=======================================================================
+        return self.lastTradeTimestamp
+
+    def initTimestamp(self):
+        #=======================================================================
+        # :returns: Timestamp - The time at which the market was initialized
+        #=======================================================================
+        return self.initializeTimestamp
 
 
     def bid(self):
@@ -276,6 +254,12 @@ class Market(object):
 
 
 
+
+
+
+
+
+
     def updateCandles(self, api, totalTimeFrame=24, tickInterval=30):
         #=======================================================================
         # Creates candlesticks object if does not exist, or updates current one with newest data
@@ -287,7 +271,6 @@ class Market(object):
         # Candles have been initialized previously
         if self.candles is not None:
             # API query - Last candle
-            #pp("Updating candlesticks for market " + self.name)
             lastCandle = api.get_latest_candle(self.abbr, TICKINTERVAL_THIRTYMIN)
             if lastCandle["success"] == True:
                 
@@ -417,8 +400,9 @@ class Market(object):
 
     def printVolumes(self):
         if self.candles is not None:
-            pp("Average hourly volume over previous day: " + str(self.candles.avgVolPerHourPreviousDay()))
-            pp("Volume over last hour: " + str(self.candles.volumeLastHr()))
+            log.info("Average hourly volume over previous day: " +
+                     str(self.candles.avgVolPerHourPreviousDay()) + "\n" +
+                     "Volume over last hour: " + + str(self.candles.volumeLastHr()))
             if self.candles.volumeLastHr() > 10*self.candles.avgVolPerHourPreviousDay():
                 self.guiNotify("Alert", "NOTIFY_TRADE_ALERT")
 

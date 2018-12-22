@@ -254,12 +254,12 @@ class CandleSticks:
         # :rtype:     double
         #=======================================================================
         if timeframe <= 0:
-            log.debug("Error in candlesticks.GetAverageVolume(self, candles, timeframe): 
-                      timeframe = " + timeframe + ", must be bigger than 0")
+            log.debug("Error in candlesticks.GetAverageVolume(self, candles, timeframe): \n" + 
+                      "'timeframe' = " + timeframe + ", must be bigger than 0")
             return -1
-        else if candles is None:
-            log.debug("Error in candlesticks.GetAverageVolume(self, candles, timeframe): 
-                      candles object is `None`")
+        elif candles is None:
+            log.debug("Error in candlesticks.GetAverageVolume(self, candles, timeframe): \n" +
+                      "'candles' object is `None`")
             return -1
         else:
             avgVolume = 0

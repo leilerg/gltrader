@@ -6,8 +6,8 @@ from .notification import *
 from pprint import pprint as pp
 from pip._vendor.packaging import specifiers
 
-
-
+import logging
+log = logging.getLogger(__name__)
 
 
 class Action(object):
@@ -35,8 +35,8 @@ class Action(object):
         # :param market: (Market) This should be passed in by the strategy method when it calls the action.  
         # It is currently optional in case actions are extended beyond strategy/market situations
         #=======================================================================
-
         self.market = market
+
 
     def __repr__(self):
         return "<"+self.__class__.__name__+"::action object at "+hex(id(self))+">"
@@ -59,21 +59,23 @@ class Action(object):
         return complete and not self.disabled
 
     def checkActionComplete(self):
-        """
-        Checks whether action is complete. Stub method here should be implemented according to needs for subclasses.  Optionally, self.success can be defined as well.
-
-        :returns: (Boolean) whether action has completed.
-        """
+        #===========================================================================
+        # Checks whether action is complete. Stub method here should be implemented according to needs
+        # for subclasses.  Optionally, self.success can be defined as well.  
+        #
+        # :returns: (Boolean) whether action has completed.
+        #===========================================================================
         return self.complete
 
 class OrderAction(Action):
 
     def checkActionComplete(self):
-        """
-        iterates over a list of Orders stored in self.orders to check if they are all completed successfully
-
-        :returns: (Boolean) whether all orders have completed.
-        """
+        #===========================================================================
+        # iterates over a list of Orders stored in self.orders to check if they are all completed
+        # successfully 
+        #
+        # :returns: (Boolean) whether all orders have completed.
+        #===========================================================================
         if not self.complete:
             for order in self.orders:
                 if not order.isCompleted:
@@ -120,11 +122,11 @@ class PumpAndDumpExploitTrade(OrderAction):
         didBuyMarket = buyMarket.execTrade()
         # If trade successfull, 
         if didBuyMarket:
-            # log some details, 
-            pp("Trade executed!")
-            pp("Order ID: " + buyMarket.orderID)
-            pp("Quantity bought: " + str(buyMarket.qty))
-            pp("Rate paid: " + str(buyMarket.rate))
+            # log some details,
+            log.info("Trade executed!!\n" +
+                     "Order ID: " + buyMarket.orderID + "\n" +
+                     "Quantity bought: " + str(buyMarket.qty) + "\n" +
+                     "Rate paid: " + str(buyMarket.rate))
             # and execute next one, limit sell
             sellLimit = LimitSell(self.market, 
                                   None, 
@@ -138,61 +140,30 @@ class PumpAndDumpExploitTrade(OrderAction):
             self.success = True
             if not didLimitSell:
                 Error("PumpAndDumpExploitTrade error: Limit sell failed")
+                log.critical("Warning: action.PumpAndDumpExploitTrade() Limit Sell failed")
                 self.success = False
                 return False
         else: 
             Error("PumpAndDumpExploitTrade error: Market buy failed")
+            log.critical("Warning: action.PumpAndDumpExploitTrade() Market Buy failed")
             self.success = False
-
 
         self.done = True
 
-        
         return self.orders           
             
     
-        #=======================================================================
-        # if buyMarket.parseAmount(float(self.market.config["min_trade_amount"])*2.2):
-        #     if order1.execTrade():
-        #         pp("trade")
-        #         pp(order1.parseAmount(float(self.market.config["min_trade_amount"])*2.2))
-        #         pp(order1.rate)
-        #         pp(order1.qty)
-        #         pp(order1.orderID)
-        #         pp(order1.amount)
-        #         order2 = LimitSell(self.market, None, rate, order1.qty)
-        #         self.orders.append(order2)
-        #         if not order2.execTrade():
-        #             Error("MinTradeUp second buy failed")
-        #             self.success = False
-        #             return False
-        #         self.success = True
-        #     else:
-        #         Error("MinTradeUp first buy failed")
-        #         self.success = False
-        # else:
-        #     self.success = False
-        #     Alert("Trade Up order Too large")
-        # return self.orders
-        #=======================================================================
-
-
-
-
-
-
-
-
-
 
 class MinTradeUp(OrderAction):
     #===========================================================================
-    # MinTradeUp requires a total trade amount of 2.2x the minimum trade value defined in the config file.  
+    # MinTradeUp requires a total trade amount of 2.2x the minimum trade value defined in the config
+    # file.   
     # It places a minimum market trade and a limit sell at 1.2 times the rate.
     #===========================================================================
     def do(self):
         #=======================================================================
-        # Creates 1 market order and appends it to self.orders, then uses the return values to create a 2nd order and append it as well.
+        # Creates 1 market order and appends it to self.orders, then uses the return values to
+        # create a 2nd order and append it as well. 
         # 
         # :returns: (Order, Order) A 2-tuple of the orders created on execution
         #=======================================================================
@@ -203,12 +174,13 @@ class MinTradeUp(OrderAction):
 
         if order1.parseAmount(float(self.market.config["min_trade_amount"])*2.2):
             if order1.execTrade():
-                pp("trade")
-                pp(order1.parseAmount(float(self.market.config["min_trade_amount"])*2.2))
-                pp(order1.rate)
-                pp(order1.qty)
-                pp(order1.orderID)
-                pp(order1.amount)
+                log.info("Trade details:\n" +
+                         "Tentative amount: " +
+                         order1.parseAmount(float(self.market.config["min_trade_amount"])*2.2) + "\n" +
+                         "Rate: " + order1.rate + "\n" +
+                         "Quantity: " + order1.qty + "\n" +
+                         "OrderID: " + order1.orderID + "\n" +
+                         "Amount: " + order1.amount)
                 order2 = LimitSell(self.market, None, rate, order1.qty)
                 self.orders.append(order2)
                 if not order2.execTrade():
@@ -228,8 +200,6 @@ class MinTradeUp(OrderAction):
 
 
 
-
-
 class SingleOrderAction(OrderAction):
     """
     Stub class no longer needed, but may be useful later
@@ -242,11 +212,13 @@ class SingleOrderAction(OrderAction):
 
 # class MaxTradeUp(OrderAction):
 #     """
-#     MaxTradeUp requires a total trade amount of 2.2x the maximum trade value defined in the config file.  It places a maximum market trade and a limit sell at 1.2 times the rate.
+#     MaxTradeUp requires a total trade amount of 2.2x the maximum trade value defined in the config
+#     file.  It places a maximum market trade and a limit sell at 1.2 times the rate. 
 #     """
 #     def do(self):
 #         """
-#         Creates 1 market order and appends it to self.orders, then uses the return values to create a 2nd order and append it as well.
+#         Creates 1 market order and appends it to self.orders, then uses the return values to
+#     create a 2nd order and append it as well. 
 #
 #         :returns: (Order, Order) A 2-tuple of the orders created on execution
 #         """

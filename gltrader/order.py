@@ -1,6 +1,8 @@
 from kivy.app import App
 from .notification import *
-from pprint import pprint as pp
+
+import logging
+log = logging.getLogger(__name__)
 
 
 
@@ -28,10 +30,10 @@ class Order(object):
         self.trader = App.get_running_app().trader
         if self.trader.config["live_trades"]:
             self.api = self.trader.api
-            pp("LIVE TRADE")
+            log.debug("LIVE TRADE")
         else:
             self.api = self.trader.fapi
-            pp("FAKE TRADE")
+            log.debug("FAKE TRADE")
         self.market = market
         # self.marketAbbr = "BTC-"+market.currency["Currency"]
         self.rate = rate
@@ -107,7 +109,8 @@ class Order(object):
         # Validates based on the following criteria:
         # - No open orders
         # - No pending balances
-        # # - Total trade amounts (open buys + sells) + this trade amount are less than total trade amount (not exact for market orders)
+        # # - Total trade amounts (open buys + sells) + this trade amount are less than total trade
+        # amount (not exact for market orders) 
         # # - That's it for now
         # :returns: (Boolean) Whether order fits criteria listed above
         #=======================================================================
@@ -151,16 +154,19 @@ class Order(object):
             return amt
         else:
             Error("trade amount out of range", self.market)
-            pp(self.maxTrade)
-            pp(self.minTrade)
+            log.debug("Max Trade: " + str(self.maxTrade) + "\n" +
+                      "Min Trade: " + str(self.minTrade))
             return False
 
 
     def getOpenOrderInfo(self):
         #=======================================================================
-        # Iterates through open orders and returns a dictionary with entries representing the summed total amount of open buys, summed total amount of open sells, as well as the number of open buys and the number of open sells
+        # Iterates through open orders and returns a dictionary with entries representing the summed
+        # total amount of open buys, summed total amount of open sells, as well as the number of
+        # open buys and the number of open sells 
         # 
-        # :returns: (Dictionary/Boolean) a dictionary of information about open orders or False if invalid
+        # :returns: (Dictionary/Boolean) a dictionary of information about open orders or False if
+        # invalid 
         #=======================================================================
         response = self.api.get_open_orders("BTC-"+self.market.name)
 
@@ -178,7 +184,7 @@ class Order(object):
                     orderInfo["buys"] = orderInfo["buys"] + 1
                     orderInfo["buysTot"] = orderInfo["buysTot"] + (float(order["Limit"])*float(order["Quantity"]))
                 else:
-                    pp(order)
+                    log.info("Unknown order type - " + str(order))
             return orderInfo
         else:
             Error("Could Not fetch Open Orders--Order Invalid", self)
@@ -214,7 +220,8 @@ class Order(object):
 #                 self.qty = float(response["result"]["Quantity"])
 #                 self.orderID = response["result"]["OrderId"]
 #                 # Success("Order "+self.orderID+"Executed: "+str(self.qty)+"x("+str(self.rate)+") = "+str(self.amount))
-#                 Success("Order Executed: "+str(self.qty) + self.market.name + "x(" + str(self.rate)+ ") = " + str(self.amount) )
+#                 Success("Order Executed: "+str(self.qty) + self.market.name + "x(" +
+# str(self.rate)+ ") = " + str(self.amount) ) 
 #                 return response["result"]["OrderId"]
 #             else:
 #                 Error("Order Failed: "+response["message"])
@@ -251,7 +258,8 @@ class LimitBuy(Order):
                 self.qty = float(response["result"]["Quantity"])
                 self.orderID = response["result"]["OrderId"]
                 # Success("Order "+self.orderID+"Executed: "+str(self.qty)+"x("+str(self.rate)+") = "+str(self.amount))
-                # Success("Order Executed: " + str(self.qty) + self.market.name + "x(" + str(self.rate)+ ") = " + str(self.amount) )
+                # Success("Order Executed: " + str(self.qty) + self.market.name + "x(" +
+                # str(self.rate)+ ") = " + str(self.amount) ) 
                 Success("BUY Order Executed! ")
                 Success("Bought: {:16.8f}".format(self.qty) + " " + self.market.name)
                 # Success("Rate: {:10.8f}".format(self.rate)) 
@@ -286,7 +294,7 @@ class LimitSell(Order):
                 time_in_effect=self.effect
             )
             self.trader.calls = self.trader.calls + 1
-            pp(response)
+            log.debug("Response: " + str(response))
             if response["success"]:
                 self.isActive = True
                 self.rate = response["result"]["Rate"]
@@ -319,11 +327,6 @@ class MarketOrder(Order):
     orderType = "MARKET"
     rate = None
     
-    #===========================================================================
-    # pp("Market Buy ORDER")
-    #===========================================================================
-
-
 
 
 class MarketBuy(MarketOrder, LimitBuy):

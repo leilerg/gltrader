@@ -53,8 +53,8 @@ class Market(object):
         self.marketData = MarketData(marketSummaryData)
         # Set candles object to none
         self.candles = None
-        # Initialize trade time at 2000-01-01, 00:00
-        self.lastTradeTimestamp = datetime.datetime(2000, 1, 1, 0, 0, 0)
+        # Set time stamp ditcionary to empty
+        self.lastTradeTimestamp = {}
         # Market initialization timestamp
         self.initializeTimestamp = datetime.datetime.now()
         
@@ -62,7 +62,6 @@ class Market(object):
         # :FIX ME: Used in notification.py where it calls market.checkUpToDate to update the GUI
         # Leaving for now, but should be removed...
         self.isMonitored = True
-
 
 
 
@@ -75,20 +74,34 @@ class Market(object):
 
 
 
-    def resetLastTradeTime(self):
+    def resetLastTradeTime(self, strStrategy):
         #=======================================================================
-        # Resets the time of the last trade
+        # Resets the time of the last trade for a given strategy
+        # 
+        # Inputs:
+        # * :strStrategy: (String) - The name of the strategy to timestamp 
         # 
         # returns: N/A
         #=======================================================================
-        # print("\nResetting last Trade!!!")
-        self.lastTradeTimestamp = datetime.datetime.now()
+        self.lastTradeTimestamp[strStrategy] = datetime.datetime.now()
 
-    def lastTradeTime(self):
+        
+    def lastTradeTime(self, strStrategy):
         #=======================================================================
-        # :returns: Timestamp - The last time at which a trade occurred
+        # Returns the timestamp of the last execution of `strStrategy`. If the strategy has never
+        # been executed before, returns 2000-01-01@00:00:00
+        #
+        # Inputs:
+        # * :strStrategy: (String)
+        #
+        # :returns: Timestamp - The last time at which `strStrategy` was executed
+        #
         #=======================================================================
-        return self.lastTradeTimestamp
+        if strStrategy in self.lastTradeTimestamp:
+            return self.lastTradeTimestamp[strStrategy]
+        else:
+            return datetime.datetime(2000, 1, 1, 0, 0, 0)
+
 
     def initTimestamp(self):
         #=======================================================================
@@ -115,31 +128,39 @@ class Market(object):
         #=======================================================================
         return self.marketData.last()
 
-    def high(self):
+    def previousDayHigh(self, includeCurrent = True):
         #=======================================================================
-        # :returns: Double - The 24hr high 
+        # Returns the previous 24hr high
+        # 
+        # Inputs:
+        #     includeCurrent - :bool: Include/exclude most recent tick period
+        #     
+        # :return:    High price in past 24 hrs
+        # :rtype:     double
         #=======================================================================
-        return self.marketData.high()
+        if includeCurrent:
+            return self.marketData.previousDayHigh()
+        else:
+            return self.candles.previousDayHigh()
+        
 
-    def low(self):
+    def previousDayLow(self):
         #=======================================================================
         # :returns: Double - The 24hr low 
         #=======================================================================
-        return self.marketData.low()
+        return self.marketData.previousDayLow()
 
-    def prevDay(self):
+    def previousDayPrice(self):
         #=======================================================================
         # :returns: Double - The price 24hrs ago
         #=======================================================================
-        return self.marketData.prevDay()
+        return self.marketData.previousDayPrice()
 
-    def baseVolume(self):
+    def previousDayBaseVol(self):
         #=======================================================================
         # :returns: Double - 24 volume (in bitcoin)
         #=======================================================================
-        return self.marketData.baseVolume()
-
-
+        return self.marketData.previousDayBaseVol()
 
     def totalBalance(self):
         #=======================================================================
@@ -158,7 +179,13 @@ class Market(object):
         # :returns: Double - Pending balance
         #=======================================================================
         return self.marketData.pendingBalance()
-    
+
+
+
+
+
+
+
 
     def volumeLastHr(self):
         #=======================================================================
@@ -167,7 +194,7 @@ class Market(object):
         if self.candles is not None:
             return self.candles.volumeLastHr()
         else:
-            return 0.
+            return 999999999.
     
     def avgVolPerHourPreviousDay(self):
         #=======================================================================
@@ -176,44 +203,101 @@ class Market(object):
         if self.candles is not None:
             return self.candles.avgVolPerHourPreviousDay()
         else:
-            return 0.
+            return 999999999.
 
-    def lastOpen(self):
+    def previousDayTickVolMean(self):
+        #======================================================================
+        # :returns: Double - The average tick (altcoin) volume traded over the past day
+        #======================================================================
+        if self.candles is not None:
+            return self.candles.previousDayTickVolMean()
+        else:
+            999999999.
+
+    def previousDayTickVolStdev(self):
+        #======================================================================
+        # :returns: Double - The stdev of the tick (altcoin) volume traded over the past day
+        #======================================================================
+        if self.candles is not None:
+            return self.candles.previousDayTickVolStdev()
+        else:
+            999999999.
+
+    def previousDayTickBsVolMean(self):
+        #======================================================================
+        # :returns: Double - The average tick (bitcoin) volume traded over the past day
+        #======================================================================
+        if self.candles is not None:
+            return self.candles.previousDayTickBsVolMean()
+        else:
+            999999999.
+
+    def previousDayTickBsVolStdev(self):
+        #======================================================================
+        # :returns: Double - The stdev of the (bitcoin) tick volume traded over the past day
+        #======================================================================
+        if self.candles is not None:
+            return self.candles.previousDayTickBsVolStdev()
+        else:
+            999999999.
+
+
+
+
+
+            
+            
+    def currentVol(self):
         #=======================================================================
-        # :return: Double - The open price during the last tickInterval
+        # :returns: Double - The traded volume during the current tickInterval
         #=======================================================================
         if self.candles is not None:
-            return self.candles.lastOpen()
+            return self.candles.currentVol()
         else:
-            return 0.
+            return 999999999.
 
-    def lastClose(self):
+    def currentBaseVol(self):
         #=======================================================================
-        # :returns: Double - The close price during the last tickInterval
-        # CAVEAT: This is ill defined as the tick interval is still ongoing...
+        # :returns: Double - The traded base volume during the current tickInterval
         #=======================================================================
         if self.candles is not None:
-            return self.candles.lastClose()
+            return self.candles.currentBaseVol()
         else:
-            return 0.
-
-    def lastHigh(self):
+            return 999999999.
+        
+    def currentOpen(self):
         #=======================================================================
-        # :returns: Double - The high price during the last tickInterval
+        # :return: Double - The open price during the current tickInterval
         #=======================================================================
         if self.candles is not None:
-            return self.candles.lastHigh()
+            return self.candles.currentOpen()
         else:
-            return 0.
+            return 999999999.
 
-    def lastLow(self):
+    def currentClose(self):
+        #=======================================================================
+        # :returns: None
+        # Explanation: This is ill defined as the tick interval is still ongoing...
+        #=======================================================================
+        return None
+
+    def currentHigh(self):
+        #=======================================================================
+        # :returns: Double - The high price during the current tickInterval
+        #=======================================================================
+        if self.candles is not None:
+            return self.candles.currentHigh()
+        else:
+            return 999999999.
+
+    def currentLow(self):
         #=======================================================================
         # :returns: Double - The low price during the last tickInterval
         #=======================================================================
         if self.candles is not None:
-            return self.candles.lastLow()
+            return self.candles.currentLow()
         else:
-            return 0.
+            return 999999999.
 
     def previousDayLastOpen(self):
         #=======================================================================
@@ -222,7 +306,7 @@ class Market(object):
         if self.candles is not None:
             return self.candles.previousDayLastOpen()
         else:
-            return 0.
+            return 999999999.
 
     def previousDayLastClose(self):
         #=======================================================================
@@ -231,7 +315,7 @@ class Market(object):
         if self.candles is not None:
             return self.candles.previousDayLastClose()
         else:
-            return 0.
+            return 999999999.
 
     def previousDayLastHigh(self):
         #=======================================================================
@@ -240,7 +324,7 @@ class Market(object):
         if self.candles is not None:
             return self.candles.previousDayLastHigh()
         else:
-            return 0.
+            return 999999999.
 
     def previousDayLastLow(self):
         #=======================================================================
@@ -249,7 +333,7 @@ class Market(object):
         if self.candles is not None:
             return self.candles.previousDayLastLow()
         else:
-            return 0.
+            return 999999999.
 
 
     #================================================================================================
@@ -262,20 +346,20 @@ class Market(object):
     # The following methods are provided:
     #
     # PREVIOUS DAY:
-    # - getAllPreviousDayOpens():       Time series of open prices for all candels during previous day
-    # - getAllPreviousDayCloses():      Time series of close prices for all candels during previous day
-    # - getAllPreviousDayLows():        Time series of low prices for all candels during previous day
-    # - getAllPreviousDayHighs():       Time series of high prices for all candels during previous day
-    # - getAllPreviousDayVolumes():     Time series of volumes for all candels during previous day
-    # - getAllPreviousDayBaseVolumes(): Time series of open prices for all candels during previous day
+    # - getAllPreviousDayOpens():       Time series of open prices for all candles during previous day
+    # - getAllPreviousDayCloses():      Time series of close prices for all candles during previous day
+    # - getAllPreviousDayLows():        Time series of low prices for all candles during previous day
+    # - getAllPreviousDayHighs():       Time series of high prices for all candles during previous day
+    # - getAllPreviousDayVolumes():     Time series of volumes for all candles during previous day
+    # - getAllPreviousDayBaseVolumes(): Time series of open prices for all candles during previous day
     #
     # LAST HOUR:
-    # - getAllLastHrOpens():       Time series of open prices for all candels during previous day
-    # - getAllLastHrCloses():      Time series of close prices for all candels during previous day
-    # - getAllLastHrLows():        Time series of low prices for all candels during previous day
-    # - getAllLastHrHighs():       Time series of high prices for all candels during previous day
-    # - getAllLastHrVolumes():     Time series of volumes for all candels during previous day
-    # - getAllLastHrBaseVolumes(): Time series of open prices for all candels during previous day
+    # - getAllLastHrOpens():            Time series of open prices for all candles during previous day
+    # - getAllLastHrCloses():           Time series of close prices for all candles during previous day
+    # - getAllLastHrLows():             Time series of low prices for all candles during previous day
+    # - getAllLastHrHighs():            Time series of high prices for all candles during previous day
+    # - getAllLastHrVolumes():          Time series of volumes for all candles during previous day
+    # - getAllLastHrBaseVolumes():      Time series of open prices for all candles during previous day
     #
     #================================================================================================
 
@@ -311,7 +395,7 @@ class Market(object):
         # :returns: List - A list with all the high prices from all the previous day candles
         #=======================================================================
         if self.candles is not None:
-            return self.candels.getAllPreviousDayHighs()
+            return self.candles.getAllPreviousDayHighs()
         else:
             return [0]
 
@@ -319,7 +403,7 @@ class Market(object):
         #=======================================================================
         # :returns: List - A list with all the volumes from all the previous day candles
         #=======================================================================
-        if self.candels is not None:
+        if self.candles is not None:
             return self.candles.getAllPreviousDayVolumes()
         else:
             return [0]
@@ -346,7 +430,7 @@ class Market(object):
         #=======================================================================
         # :returns: List - A list with all the close prices from all the last hour candles
         #=======================================================================
-        if self.candles is not None
+        if self.candles is not None:
             return self.candles.getAllLastHrCloses()
         else:
             return [0]
@@ -416,21 +500,13 @@ class Market(object):
             lastCandle = api.get_latest_candle(self.abbr, TICKINTERVAL_THIRTYMIN)
             if lastCandle["success"] == True:
                 
-                #===============================================================
-                # print(datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S") + 
-                #       ": Market {:>9}".format(self.abbr) + " updating last candle:" +
-                #       ", Last High= {:10.8f}".format(lastCandle["result"][0]["H"]) +
-                #       ", Last Vol= {:20.8f}".format(lastCandle["result"][0]["V"]) +
-                #       ", Timestamp= " + lastCandle["result"][0]["T"])
-                #===============================================================
-
                 log.debug("Update for market {:>9}".format(self.abbr) +
                           ", Thread ID: {:>5}".format(str(threadID)) +
                           ", Last candle: " + str(lastCandle["result"]))
 
                 self.candles.updateCandles(lastCandle["result"][0])
             else:
-                self.guiNotify("Alert", "Candles update (" + self.abbr + "): API_RESPONSE_MISS")
+                self.guiNotify("Alert", "Last candle update (" + self.abbr + "): API_RESPONSE_MISS")
         # First time updating candles
         else:
             # API query - All candles
@@ -442,7 +518,7 @@ class Market(object):
                 
                 self.candles = CandleSticks(allCandles["result"], totalTimeFrame, tickInterval)
             else:
-                self.guiNotify("Alert", "API_RESPONSE_MISS")
+                self.guiNotify("Alert", "All candles update (" + self.abbr + "): API_RESPONSE_MISS")
         
 
     def updateMarketData(self, marketData):

@@ -48,16 +48,16 @@ class MarketData(object):
     def last(self):
         return self.bitcoinMarketSummary["Last"]
 
-    def high(self):
+    def previousDayHigh(self):
         return self.bitcoinMarketSummary["High"]
 
-    def low(self):
+    def previousDayLow(self):
         return self.bitcoinMarketSummary["Low"]
 
-    def prevDay(self):
+    def previousDayPrice(self):
         return self.bitcoinMarketSummary["PrevDay"]
 
-    def baseVolume(self):
+    def previousDayBaseVol(self):
         return self.bitcoinMarketSummary["BaseVolume"]
         
     def totalBalance(self):

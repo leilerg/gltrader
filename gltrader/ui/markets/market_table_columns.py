@@ -122,7 +122,7 @@ class MarketTableColumns(object):
         # :returns: (Widget) a getter for the latest base volume widget
         #=======================================================================
         def get24Vol():
-            return self.market.baseVolume()
+            return self.market.previousDayBaseVol()
         return GenericNumberLabel(get24Vol , font_size=sp(12))
 
     def get24ChangeWidget(self):

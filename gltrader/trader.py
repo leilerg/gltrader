@@ -153,10 +153,12 @@ class Trader(object):
         # 
         # Each market is independently evaluated against each strategy.
         #=======================================================================
-        # Loop over all markets
-        for marketName in self.markets:
-            #Loop over all strategies
-            for strategy in self.strategies:
+        # Loop over all strategies
+        for strategy in self.strategies:
+            # Log/dump the header
+            strategy.printLogHeader(strategy)
+            # Loop over all markets
+            for marketName in self.markets:
                 # Instantiate strategy
                 strat = strategy(self.markets[marketName], self.config)
                 # Execute strategy
@@ -183,11 +185,12 @@ class Trader(object):
                 threads.append(t)
                 try:
                     t.start()
-                except Exception as err:
-                    log.critical("Unhandled exception in 'trader.updateMarketCandles()'\n"+
-                                 "Thread failure, Traceback dump: " + traceback.print_tb(err.__traceback__))
+                except Exception as error:
+                    # log.critical("Unhandled exception in 'trader.updateMarketCandles()'\n"+
+                    #              "Thread failure, Traceback dump: " + traceback.print_tb(err.__traceback__))
                     # DUMP thread stack!
-                    log.exception(error)
+                    log.exception("Unhandled exception in 'trader.updateMarketCandles()'\n" +
+                                  "Error: " + str(error))
                 
             # Join the threads back up so the code only proceeds once they are all done
             for t in threads:

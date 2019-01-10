@@ -39,6 +39,11 @@ class FakeAPI(object):
         pass
 
 
+
+    def isLiveAPI(self):
+        return "FAKE TRADE"
+    
+
     def get_markets(self):
 
         return {'success': True,
@@ -223,7 +228,7 @@ class FakeAPI(object):
                 "OrderId": "98347-5q908457nx908457-qx23904857",
                 "OrderType": "LIMIT",
                 "Quantity": quantity,
-                "Rate": 0.00002
+                "Rate": rate
             }
         }
 
@@ -239,7 +244,7 @@ class FakeAPI(object):
                 "OrderId": "98347-5q908457nx908457-qx23904857",
                 "OrderType": "LIMIT",
                 "Quantity": quantity,
-                "Rate": 0.00001
+                "Rate": rate
             }
         }
 

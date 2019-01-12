@@ -56,12 +56,17 @@ class Trader(object):
         #Set the configuration
         self.config = config
         if self.config is not None:
-            #create new instance of API wrapper object and set as property of trader object so it can be accessed
-            self.api = BittrexAPI(self.config["exchange"]["bittrex"]["key"], self.config["exchange"]["bittrex"]["secret"])
+            # Initialize querying API - Used for non-trading queries
+            self.queryAPI = BittrexAPI(self.config["exchange"]["bittrex"]["key"],
+                                       self.config["exchange"]["bittrex"]["secret"])
+            # Load all strategies
             self.getStrategies()
 
-        #mocked API that can be used for some basic testing of live trades (cannot replace whole API)
-        self.fapi = FakeAPI()
+        # Create trading API - Same as query API, but override if testing with fake trades
+        self.tradeAPI = self.queryAPI
+        if not self.config["live_trades"]:
+            self.tradeAPI = FakeAPI()
+        
         self.bitcoinBalance = 0
 
         self.markets = {}
@@ -88,7 +93,7 @@ class Trader(object):
             self.runStrategies()
 
         log.info("Total markets monitored: " +str(len(self.markets)))
-        log.info("API calls: " + str(self.api.getApiCalls()))
+        log.info("API calls: " + str(self.queryAPI.getApiCalls()))
     
 
 
@@ -160,7 +165,7 @@ class Trader(object):
             # Loop over all markets
             for marketName in self.markets:
                 # Instantiate strategy
-                strat = strategy(self.markets[marketName], self.config)
+                strat = strategy(self.markets[marketName], self.config, self.tradeAPI)
                 # Execute strategy
                 strat.execute()
                 
@@ -176,12 +181,12 @@ class Trader(object):
         if self.markets is not None:
             #===================================================================
             # for marketName in self.markets:
-            #     self.markets[marketName].updateCandles(self.api, timeFrame, tickInterval)
+            #     self.markets[marketName].updateCandles(self.queryAPI, timeFrame, tickInterval)
             #===================================================================
             threads = []
             for marketName in self.markets:
                 t = threading.Thread(target=self.markets[marketName].updateCandles,
-                                     args=[self.api, timeFrame, tickInterval])
+                                     args=[self.queryAPI, timeFrame, tickInterval])
                 threads.append(t)
                 try:
                     t.start()
@@ -322,9 +327,9 @@ class Trader(object):
         #
         # :returns: List[Dict] if succesful, or None
         #=======================================================================
-        #pp(self.api.list_bitcoin_markets())
+        #pp(self.queryAPI.list_bitcoin_markets())
         #get data via get_balances to limit individual calls and make sure data used down the line is synchronous
-        response = self.api.get_balances()
+        response = self.queryAPI.get_balances()
         #if API responds
         if response["success"]:
             return response["result"]
@@ -346,13 +351,13 @@ class Trader(object):
         """
         Return api data from markets --- used for tests
         """
-        pp(self.api.get_balances())
+        pp(self.queryAPI.get_balances())
 
     def dumplist(self):
         """
         Return api data from markets --- used for tests
         """
-        response = self.api.get_balances()
+        response = self.queryAPI.get_balances()
         return response["result"]
 
 

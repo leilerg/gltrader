@@ -19,8 +19,9 @@ class Strategy(object):
     strName = "Invalid Strategy"
     
 
-    def __init__(self, market, appConfig):
+    def __init__(self, market, appConfig, tradeAPI):
         self.market = market
+        self.tradeAPI = tradeAPI
         self.trader = App.get_running_app().trader
         self.action = False
         self.config = {}
@@ -36,33 +37,6 @@ class Strategy(object):
             if appConfig["strategies"].get(self.strName, False):
                 for key, value in self.market.config.get("strategies", {}).items():
                     self.config[key] = value
-
-
-        # NOT NEEDED... EVERY STRATEGIES SHOULD SPECIFY THE RESET INTERVAL INDEPENDENTLY
-        # Changes: config.yaml + specific config file
-        self.reset_interval = self.config["strategy_reset_interval"]
-
-
-
-
-    # :FIX ME: Two objectives to implement
-    # One - When a trade gets executed, must flag the market that the trade has happened
-    # Two - At the same time, must flag that it has been executed against a specific strategy. In
-    # other words, when querying for the last trade in a given market, this should also tell me what
-    # is the strategy it has been executed against.
-    # Could be implemented by introducing a "lastTradeTimestamp" dictionary in the market class -
-    # which would return the last trade timestamp for the specific strategy, but some default if the
-    # strategy has not been executed so far. Updating the timestapm would then need to happen in the
-    # specific strategy and not here, as is the case now.
-    #
-    # The above suggestion does not seem to work as every strategy gets executed below only, and
-    # hence it's only here that the app is aware if the strategy gets eecuted or not. That's why the
-    # refresh happens here.
-    #
-    # I could use a strategy name! Then I could reset the market from below using the actual
-    # strategy being executed
-
-
 
 
     # :FIX ME: Execute strategy with available balance, to check if enough money is available

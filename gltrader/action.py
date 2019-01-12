@@ -6,6 +6,8 @@ from .notification import *
 from pprint import pprint as pp
 from pip._vendor.packaging import specifiers
 
+from .order_details import *
+
 import logging
 log = logging.getLogger(__name__)
 
@@ -48,11 +50,11 @@ class Action(object):
         return "<"+self.__class__.__name__+"::action object at "+hex(id(self))+">"
 
     def checkNotDisabled(self):
-        """
-        checks whether action is complete or action is otherwise disabled via class property.
-
-        :returns: (Boolean) whether action should be disabled
-        """
+        #=======================================================================
+        # checks whether action is complete or action is otherwise disabled via class property.
+        #
+        # :returns: (Boolean) whether action should be disabled
+        #=======================================================================
         complete = self.checkActionComplete()
         if self.disabled:
             Alert("action "+self.__class__.__name__+" disabled", self)
@@ -96,7 +98,7 @@ class OrderAction(Action):
 
 
 
-class PumpAndDumpExploitTrade(OrderAction):
+class MarketBuyLimitSellTrade(OrderAction):
     #===========================================================================
     # Trade action used to exploit a pump and dump attempt
     # 
@@ -104,6 +106,23 @@ class PumpAndDumpExploitTrade(OrderAction):
     # The trade amount and the limit order price multiplier are specified in the config file   
     #===========================================================================
 
+    def __init__(self, market, marketBuyDetails, expRet, tradeAPI):
+        #=======================================================================
+        # Initialize the action
+        # 
+        # Input:
+        # :market:           - (Market object) For the market to trade
+        # :marketBuyDetails: - (BittrexOrderDetails object) With the details for the market buy
+        # :expRet:           - (Double) The expected return on the trade - The limit sell is placed
+        #                      according to this return rate, and the market buy rate
+        # :tradeAPI:         - (TradeAPI object) The API to trade with (could be fake API for tests) 
+        # 
+        #=======================================================================
+        super().__init__(market)
+        self._marketBuyDetails = marketBuyDetails
+        self._expRet = expRet
+        self._tradeAPI = tradeAPI
+        
 
     def do(self):
         #=======================================================================
@@ -114,7 +133,9 @@ class PumpAndDumpExploitTrade(OrderAction):
         #=======================================================================
 
         # Create market buy order
-        buyMarket = MarketBuy(self.market, self.market.config["min_trade_amount"])
+        buyMarket = MarketBuy(self.market,
+                              self._marketBuyDetails,
+                              self._tradeAPI)
         # Append first order for output
         self.orders.append(buyMarket)
 
@@ -122,16 +143,30 @@ class PumpAndDumpExploitTrade(OrderAction):
         didBuyMarket = buyMarket.execTrade()
         # If trade successfull, 
         if didBuyMarket:
-            # log some details,
-            log.info("Trade executed!!\n" +
-                     "Order ID: " + buyMarket.orderID + "\n" +
-                     "Quantity bought: " + str(buyMarket.qty) + "\n" +
-                     "Rate paid: " + str(buyMarket.rate))
+            # # log some details,
+            # log.info("Trade executed!!\n" +
+            #          "Order ID: " + str(buyMarket.orderID) + "\n" +
+            #          "Quantity bought: " + str(buyMarket.qty) + "\n" +
+            #          "Rate paid: " + str(buyMarket.rate))
             # and execute next one, limit sell
-            sellLimit = LimitSell(self.market, 
-                                  None, 
-                                  buyMarket.rate * (1 + self.market.config["trade_return"]), 
-                                  buyMarket.qty)
+
+            # Construct limit sell order details
+            sellLimitDetailsDict = {"marketName"    : buyMarket.marketName(),
+                                    "quantity"      : buyMarket.tradeQty(),
+                                    "rate"          : buyMarket.tradeRate() * (1 + self._expRet),
+                                    "orderType"     : "MARKET",
+                                    "timeInEffect"  : buyMarket.timeInEffect(),
+                                    "conditionType" : buyMarket.conditionType(),
+                                    "target"        : 0.}
+
+            # Construct the details object
+            sellLimitDetails = BittrexOrderDetails(sellLimitDetailsDict)
+
+            # Construct the limit sell order
+            sellLimit = LimitSell(self.market,
+                                  sellLimitDetails,
+                                  self._tradeAPI)
+
             # And append
             self.orders.append(sellLimit)
             # Execute second trade
@@ -169,14 +204,14 @@ class MinTradeUp(OrderAction):
         #=======================================================================
         self.done = True
         rate = 1.2*float(self.market.data.summary["Ask"])
-        order1 = LimitBuy(self.market, self.market.config["min_trade_amount"], rate)
+        order1 = LimitBuy(self.market, self.market.config["trade_amount"], rate)
         self.orders.append(order1)
 
-        if order1.parseAmount(float(self.market.config["min_trade_amount"])*2.2):
+        if order1.parseAmount(float(self.market.config["trade_amount"])*2.2):
             if order1.execTrade():
                 log.info("Trade details:\n" +
                          "Tentative amount: " +
-                         order1.parseAmount(float(self.market.config["min_trade_amount"])*2.2) + "\n" +
+                         order1.parseAmount(float(self.market.config["trade_amount"])*2.2) + "\n" +
                          "Rate: " + order1.rate + "\n" +
                          "Quantity: " + order1.qty + "\n" +
                          "OrderID: " + order1.orderID + "\n" +

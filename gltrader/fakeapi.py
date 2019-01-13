@@ -41,7 +41,7 @@ class FakeAPI(object):
 
 
     def isLiveAPI(self):
-        return "FAKE TRADE"
+        return False
     
 
     def get_markets(self):
@@ -226,7 +226,7 @@ class FakeAPI(object):
                 "MarketCurrency": market,
                 "MarketName": market,
                 "OrderId": "98347-5q908457nx908457-qx23904857",
-                "OrderType": "LIMIT",
+                "OrderType": order_type,
                 "Quantity": quantity,
                 "Rate": rate
             }
@@ -242,7 +242,7 @@ class FakeAPI(object):
                 "MarketCurrency": "DGB",
                 "MarketName": market,
                 "OrderId": "98347-5q908457nx908457-qx23904857",
-                "OrderType": "LIMIT",
+                "OrderType": order_type,
                 "Quantity": quantity,
                 "Rate": rate
             }

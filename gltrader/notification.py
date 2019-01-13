@@ -24,16 +24,18 @@ class Notification(object):
 
     def __init__(self, msg, sender=None, **kwargs):
         #=======================================================================
-        # Parses message and sender, sends object to GUI, and refreshes GUI so notification shows up instantly rather than wait for the tick
+        # Parses message and sender, sends object to GUI, and refreshes GUI so notification shows up
+        # instantly rather than wait for the tick 
         # 
-        # :param msg: Either a string to be used as the message or a shorthand manually defined in the getMessageValues dict
-        # :param sender: (Default=None) the object sent.  Allows buttons to be added to link to objects that sent the notification
+        # :param msg: Either a string to be used as the message or a shorthand manually defined in
+        #             the getMessageValues dict 
+        # :param sender: (Default=None) the object sent.  Allows buttons to be added to link to
+        #                objects that sent the notification 
         #=======================================================================
         self.time = datetime.now()
         self.message = self.getMessage(msg)
         self.sender = sender
         self.getObjects( kwargs)
-        log.debug("Market: " + str(sender))
         #=======================================================================
         # with App.get_running_app().printlock:
         #     if(self.sender):

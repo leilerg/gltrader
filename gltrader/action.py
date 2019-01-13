@@ -82,7 +82,7 @@ class OrderAction(Action):
             for order in self.orders:
                 if not order.isCompleted:
                     if not order.checkOrderComplete():
-                        Info("order not complete")
+                        # Info("order not complete", self.market)
                         return False
                 else:
                     if not order.success:
@@ -154,7 +154,7 @@ class MarketBuyLimitSellTrade(OrderAction):
             sellLimitDetailsDict = {"marketName"    : buyMarket.marketName(),
                                     "quantity"      : buyMarket.tradeQty(),
                                     "rate"          : buyMarket.tradeRate() * (1 + self._expRet),
-                                    "orderType"     : "MARKET",
+                                    "orderType"     : "LIMIT",
                                     "timeInEffect"  : buyMarket.timeInEffect(),
                                     "conditionType" : buyMarket.conditionType(),
                                     "target"        : 0.}

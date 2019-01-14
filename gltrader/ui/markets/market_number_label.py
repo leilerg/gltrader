@@ -89,7 +89,7 @@ class MarketVolumeLabel(MarketNumberLabel):
     
     def __init__(self, getter, **kwargs):
         self.value = getter()
-        self.text = f"{self.value:16.4f}"
+        self.text = f"{self.value:11.4f}"
         # Python 3 use of super()
         super().__init__(getter)
 

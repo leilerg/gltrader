@@ -52,8 +52,8 @@ class NotificationRow(GridLayout):
 
         if "timestamp" not in self.widgets:
             try:
-                self.widgets["timestamp"] = Label(text=self.note.time.strftime("%Y-%m-%d@%H:%M"),
-                                                  size_hint_x=None, width=200, color=[.5,.5,.5,1])
+                self.widgets["timestamp"] = Label(text=self.note.time.strftime("%Y-%m-%d @ %H:%M:%S"),
+                                                  size_hint_x=None, width=175, color=[.5,.5,.5,1])
                 self.add_widget(self.widgets["timestamp"])
             except Exception as e:
                 pp(self.note)

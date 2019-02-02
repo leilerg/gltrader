@@ -63,14 +63,48 @@ class Market(object):
         # Leaving for now, but should be removed...
         self.isMonitored = True
 
-
-
     def __repr__(self):
         return "<mkt: "+self.name+" object at "+hex(id(self))+">"
     def __str__(self):
         return "<mkt: "+self.name+" object at "+hex(id(self))+">"
     def __unicode__(self):
         return "<"+self.name+":: mkt object at "+hex(id(self))+">"
+
+
+
+    def updateCandles(self, api, totalTimeFrame=24, tickInterval=30):
+        #=======================================================================
+        # Creates candlesticks object if does not exist, or updates current one with newest data
+        # 
+        # :param data: response from API calls
+        #=======================================================================
+        # Get current thread ID
+        threadID = currentThread().ident
+        # Candles have been initialized previously
+        if self.candles is not None:
+            # API query - Last candle
+            lastCandle = api.get_latest_candle(self.abbr, TICKINTERVAL_THIRTYMIN)
+            if lastCandle["success"] == True:
+                
+                log.debug("Update for market {:>9}".format(self.abbr) +
+                          ", Thread ID: {:>5}".format(str(threadID)) +
+                          ", Last candle: " + str(lastCandle["result"]))
+
+                self.candles.updateCandles(lastCandle["result"][0])
+            else:
+                self.guiNotify("Alert", "Last candle update (" + self.abbr + "): API_RESPONSE_MISS")
+        # First time updating candles
+        else:
+            # API query - All candles
+            allCandles = api.get_candles(self.abbr, TICKINTERVAL_THIRTYMIN)
+            if allCandles["success"] == True:
+                log.debug("Update for market {:>9}".format(self.abbr) +
+                          ", Thread ID: {:>5}".format(str(threadID)) +
+                          ", All Candles: " + str(allCandles['result']))
+                
+                self.candles = CandleSticks(allCandles["result"], totalTimeFrame, tickInterval)
+            else:
+                self.guiNotify("Alert", "All candles update (" + self.abbr + "): API_RESPONSE_MISS")
 
 
 
@@ -247,21 +281,21 @@ class Market(object):
 
             
             
-    def currentVol(self):
+    def currentVol(self, estimateFullTick=False):
         #=======================================================================
         # :returns: Double - The traded volume during the current tickInterval
         #=======================================================================
         if self.candles is not None:
-            return self.candles.currentVol()
+            return self.candles.currentVol(estimateFullTick)
         else:
             return 999999999.
 
-    def currentBaseVol(self):
+    def currentBaseVol(self, estimateFullTick=False):
         #=======================================================================
         # :returns: Double - The traded base volume during the current tickInterval
         #=======================================================================
         if self.candles is not None:
-            return self.candles.currentBaseVol()
+            return self.candles.currentBaseVol(estimateFullTick)
         else:
             return 999999999.
         
@@ -486,39 +520,6 @@ class Market(object):
 
 
 
-    def updateCandles(self, api, totalTimeFrame=24, tickInterval=30):
-        #=======================================================================
-        # Creates candlesticks object if does not exist, or updates current one with newest data
-        # 
-        # :param data: response from API calls
-        #=======================================================================
-        # Get current thread ID
-        threadID = currentThread().ident
-        # Candles have been initialized previously
-        if self.candles is not None:
-            # API query - Last candle
-            lastCandle = api.get_latest_candle(self.abbr, TICKINTERVAL_THIRTYMIN)
-            if lastCandle["success"] == True:
-                
-                log.debug("Update for market {:>9}".format(self.abbr) +
-                          ", Thread ID: {:>5}".format(str(threadID)) +
-                          ", Last candle: " + str(lastCandle["result"]))
-
-                self.candles.updateCandles(lastCandle["result"][0])
-            else:
-                self.guiNotify("Alert", "Last candle update (" + self.abbr + "): API_RESPONSE_MISS")
-        # First time updating candles
-        else:
-            # API query - All candles
-            allCandles = api.get_candles(self.abbr, TICKINTERVAL_THIRTYMIN)
-            if allCandles["success"] == True:
-                log.debug("Update for market {:>9}".format(self.abbr) +
-                          ", Thread ID: {:>5}".format(str(threadID)) +
-                          ", All Candles: " + str(allCandles['result']))
-                
-                self.candles = CandleSticks(allCandles["result"], totalTimeFrame, tickInterval)
-            else:
-                self.guiNotify("Alert", "All candles update (" + self.abbr + "): API_RESPONSE_MISS")
         
 
     def updateMarketData(self, marketData):

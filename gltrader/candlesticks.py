@@ -91,22 +91,25 @@ class CandleSticks:
             # Initialize current candle
             self.currentCandle = allCandles[-1]
 
-        #Get average *hourly* volume over past day
-        self.volumePrevDayHrAverage = self.GetAverageVolume(self.previousDayCandles, HOURS_PER_DAY)
-        # Calculate time frame of last hour candles
-        # (Will generally be less than one hour as the last candle is still updating...)
-        # Note on the timestamp hour: `(timeNow.hour + 23) % 24`
-        # This is to ensure that `timeNow.hour - 1` is always [0,23], which otherwise isn't
-        # when `timeNow.hour = 0`
-        timeNow = datetime.now()
-        self.lastHrCandleLocalTimestamp = datetime(timeNow.year, timeNow.month, timeNow.day,
-                                                   (timeNow.hour + 23) % 24,
-                                                   tickInterval*(timeNow.minute // tickInterval),
-                                                   0, 0) + timedelta(minutes=tickInterval)
-        elapsedTime = (timeNow - self.lastHrCandleLocalTimestamp).seconds/SECONDS_PER_HOUR
-        # Finally, update the hourly average using the actual elapsed time
-        self.volumeLastHour = self.GetAverageVolume(self.lastHourCandles, elapsedTime)
 
+        # Set local timestamps...
+        self.timeNow = datetime.now()
+        self.localCandleTimestamp = self.candleTimestamp(self.timeNow,
+                                                         self.tickInterval)
+
+        # Time stamp the current candle
+        self.currentCandle["LT"] = self.localCandleTimestamp
+        # Time stap previous hour candles
+        for x in range(0, len(self.lastHourCandles)):
+            self.lastHourCandles[x]["LT"] = self.localCandleTimestamp + \
+                                            timedelta(hours = -1, minutes = x*tickInterval)
+        # TO DO: Implement function to time stamp all candles, which are taken as input
+        # TO DO: Additional input, offset hours from now (e.g. -1 for prev hr, -24 for prev day,..)
+
+        # Estimate current full tick volumes
+        self.currentCandle["FTBV"] = self.estimateFullTickVolume(self.currentCandle["BV"])
+        self.currentCandle["FTV"] = self.estimateFullTickVolume(self.currentCandle["V"])
+        
         # Set the derived market data for the previous day
         self.setPreviousDayDerivedMktData()
 
@@ -117,7 +120,81 @@ class CandleSticks:
         
         #Set initialization flag all good
         self.IsInitOK = True
-            
+
+
+
+
+    def updateCandles(self, lastCandle):
+        #=======================================================================
+        # Method to update the CandleSticks with the latest CandleSticks
+        #
+        # Note: When checking what to update, last candle only or all candles
+        # it will commit a small sin - Not accounting for the possible action
+        # in the last interval when all the candles need to be updated. Overall, the 
+        # impact is expected to be small, especially if a periodic re-initialization
+        # is performed  
+        # 
+        # Input is
+        #     :dict: - lastCandle - Data with the last candle
+        # 
+        # Does not return anything, it just updates the candels 
+        #=======================================================================
+        #Only update if initialization was OK
+        if self.IsInitOK and lastCandle is not None:
+            self.timeNow = datetime.now()
+
+            #Check if everything needs updating or last candle only
+            if self.currentCandle["T"] == lastCandle["T"]:
+                # Append local time stamp to candle
+                lastCandle["LT"] = self.localCandleTimestamp
+                # Update full tick volume estimates                
+                lastCandle["FTBV"] = self.estimateFullTickVolume(lastCandle["BV"])
+                lastCandle["FTV"] = self.estimateFullTickVolume(lastCandle["V"])
+                
+                # Update last candle only
+                self.currentCandle = lastCandle
+                self.lastHourCandles[-1] = lastCandle
+
+            #All candles need updating
+            else:
+                try:
+                    # Update local time stamp
+                    self.localCandleTimestamp = self.candleTimestamp(self.timeNow,
+                                                                     self.tickInterval)
+                    # Local time stamp the last candle
+                    lastCandle["LT"] = self.localCandleTimestamp
+                    # Update full tick volume estimates
+                    lastCandle["FTBV"] = self.estimateFullTickVolume(lastCandle["BV"])
+                    lastCandle["FTV"] = self.estimateFullTickVolume(lastCandle["V"])
+                    # Update current candle
+                    self.currentCandle = lastCandle
+
+
+                    #Update bulk of 24hr candles
+                    self.previousDayCandles[0:self.nrCandlesPerDay-1] = self.previousDayCandles[1:self.nrCandlesPerDay]
+                    #update last daily candle
+                    self.previousDayCandles[-1] = lastCandle
+
+                    #Update bulk of last hour candles
+                    self.lastHourCandles[0:self.nrCandlesPerHour-1] = self.lastHourCandles[1:self.nrCandlesPerHour]
+                    # Update most recent candle of last hour
+                    self.lastHourCandles[-1] = lastCandle
+
+                    # Reset all the derived market data for the previous day
+                    self.setPreviousDayDerivedMktData()
+
+                except Exception as error:
+                    log.exception("Unhandled exception in 'candlesticks.updateCandles()'\n" +
+                                  "Error: " + str(error))
+
+
+            # Log some time fractions....
+            hrFraction = (self.timeNow - self.lastHourCandles[-1]["LT"]).seconds/SECONDS_PER_HOUR
+            tickFraction = (self.timeNow - self.localCandleTimestamp).seconds/SECONDS_PER_HOUR
+            tickFraction *= self.nrCandlesPerHour
+            log.info("Curr Hr: {:6.3f}".format(hrFraction) +
+                     ", Curr Tick: {:6.3f}".format(tickFraction) +
+                     ", Curr candle LT: " + str(self.currentCandle["LT"]))
 
 
 
@@ -125,17 +202,30 @@ class CandleSticks:
 
 
 
-    def currentVol(self):
+
+    def currentVol(self, estimateFullTick=False):
         #=======================================================================
         # :returns: Double - The traded volume during the current tickInterval
+        #
+        # If `estimateFullTick == True`, returns the estimated volume over the 
+        # full tick interval. (Assumes a constant gradient.)
         #=======================================================================
-        return self.currentCandle["V"]
+        if estimateFullTick:
+            return self.currentCandle["FTV"]
+        else:
+            return self.currentCandle["V"]
 
-    def currentBaseVol(self):
+    def currentBaseVol(self, estimateFullTick = False):
         #=======================================================================
         # :returns: Double - The traded base volume during the current tickInterval
+        #
+        # If `estimateFullTick == True`, returns the estimated base volume over the 
+        # full tick interval. (Assumes a constant gradient.)
         #=======================================================================
-        return self.currentCandle["BV"]
+        if estimateFullTick:
+            return self.currentCandle["FTBV"]
+        else:        
+            return self.currentCandle["BV"]
         
     def currentOpen(self):
         #=======================================================================
@@ -241,7 +331,7 @@ class CandleSticks:
 
     #================================================================================================
     #
-    # Set of methods that return a list with a time series of the various market metrics for a past
+    # Collection of methods that return a list with a time series of the various market metrics for a past
     # period, e.g. previous day or past hour. (The list is ordered as first element is oldest, last
     # element is most recent.) These methods are meant to be used for data analysis as part of a
     # strategy, e.g. by detecting patterns in the last day.
@@ -381,93 +471,7 @@ class CandleSticks:
 
 
 
-    def getListOfValuesFromListOfDict(self, listOfDict, key):
-        #=======================================================================
-        # This method will construct a list of values corresponding to a specific key from a list of
-        # dictionaries. 
-        #
-        # Input is
-        #     :list: - listOfDict - List of dictionaries from which to extract data
-        #     :string: - key - The dictionary key of the desired data
-        # 
-        # :returns: List - The list of all the values contained in the dictionaries
-        #
-        # Example: l = [{'key1': 'apple',  'key2': 2},
-        #               {'key1': 'banana', 'key2': 3},
-        #               {'key1': 'cars',   'key2': 4}] 
-        #
-        # By calling getListOfValuesFromListOfDict(l, "key1") the output will be
-        #
-        # lst = ['apple', 'banana', 'cars']
-        #
-        # It assumes all the dictionaries have the required key, and that the list is well formed,
-        # i.e. that the input is indeed a list of dictionaries
-        #
-        #=======================================================================
-        return [d[key] for d in listOfDict]
 
-
-
-    def updateCandles(self, lastCandle):
-        #=======================================================================
-        # Method to update the CandleSticks with the latest CandleSticks
-        #
-        # Note: When checking what to update, last candle only or all candles
-        # it will commit a small sin - Not accounting for the possible action
-        # in the last interval when all the candles need to be updated. Overall, the 
-        # impact is expected to be small, especially if a periodic re-initialization
-        # is performed  
-        # 
-        # Input is
-        #     :dict: - lastCandle - Data with the last candle
-        # 
-        # Does not return anything, it just updates the candels 
-        #=======================================================================
-        #Only update if initialization was OK
-        if self.IsInitOK and lastCandle is not None:
-
-            #Check if everything needs updating or last candle only
-            if self.currentCandle["T"] == lastCandle["T"]:
-                #Update last candle only
-                self.currentCandle = lastCandle
-                self.lastHourCandles[-1] = lastCandle
-
-            #All candles need updating
-            else:
-                #=========================================
-                # print("\nUPDATE ALL CANDLES!!!")
-                # print("Previous day candles - Before")
-                # pp(self.previousDayCandles)
-                #=========================================
-                try:
-                    #Update bulk of 24hr candles
-                    self.previousDayCandles[0:self.nrCandlesPerDay-1] = self.previousDayCandles[1:self.nrCandlesPerDay]
-                    #update last daily candle
-                    self.previousDayCandles[-1] = self.currentCandle
-
-                    #Update bulk of last hour candles
-                    self.lastHourCandles[0:self.nrCandlesPerHour-1] = self.lastHourCandles[1:self.nrCandlesPerHour]
-                    #update last hourly candle
-                    self.lastHourCandles[-1] = lastCandle
-                    # Update current candle
-                    self.currentCandle = lastCandle
-
-                    #update average *hourly* volume over past day
-                    self.volumePrevDayHrAverage = self.GetAverageVolume(self.previousDayCandles,
-                                                                        HOURS_PER_DAY)
-                    # Reset all the derived market data for the previous day
-                    self.setPreviousDayDerivedMktData()
-
-                except Exception as error:
-                    log.exception("Unhandled exception in 'candlesticks.updateCandles()'\n" +
-                                  "Error: " + str(error))
-
-            # Last step - Update hourly volume - See __init__ for logic in below calculation
-            elapsedTime = (datetime.now() - self.lastHrCandleLocalTimestamp).seconds/SECONDS_PER_HOUR
-            # Finally, update the hourly average using the actual elapsed time
-            self.volumeLastHour = self.GetAverageVolume(self.lastHourCandles, elapsedTime)
-            # # Log some times...
-            # log.debug("Elapsed time, in hours: " + str(elapsedTime))
 
 
 
@@ -611,12 +615,58 @@ class CandleSticks:
 
 
 
+
+
+    def estimateFullTickVolume(self, runningVolume):
+        #=======================================================================
+        # Method to estimate the (base) volume over the currently running tick.
+        # (Extrapolates the current volume assuming constant gradient.)
+        #
+        # Inputs:
+        # - runningVolume - :Double: The current running volume
+        #
+        # :return:    Double
+        #=======================================================================
+        tickFraction = (self.timeNow - self.localCandleTimestamp).seconds
+        tickFraction *= self.nrCandlesPerHour/SECONDS_PER_HOUR
+        return runningVolume/tickFraction
+
+
+    def getAverageBaseVolume(self, candles, timeframe):
+        #=======================================================================
+        # Function to calculate the average volume for a 'candles' dictionary
+        # 
+        # Inputs:
+        #     candles - :list of dict: with data
+        #     timeframe - :integer: number of hours
+        #     
+        # :return:    Average volume over 'timeframe'
+        # :rtype:     double
+        #=======================================================================
+        if timeframe <= 0:
+            log.critical("Error in candlesticks.GetAverageBaseVolume(): \n" + 
+                         "'timeframe' = " + timeframe + ", must be bigger than 0")
+            return -1
+        elif candles is None:
+            log.critical("Error in candlesticks.GetAverageBaseVolume(): \n" +
+                         "'candles' object is `None`")
+            return -1
+        else:
+            avgVolume = 0
+            for candle in candles:
+                avgVolume = avgVolume + candle["BV"]
+            avgVolume = avgVolume/timeframe
+                
+            return avgVolume
+
+
+
     def GetAverageVolume(self, candles, timeframe):
         #=======================================================================
         # Function to calculate the average volume for a 'candles' dictionary
         # 
         # Inputs:
-        #     candles - :dict: with data
+        #     candles - :list of dict: with data
         #     timeframe - :integer: number of hours
         #     
         # :return:    Average volume over 'timeframe'
@@ -637,6 +687,58 @@ class CandleSticks:
             avgVolume = avgVolume/timeframe
                 
             return avgVolume
+
+    def candleTimestamp(self, timestamp, tickInterval):
+        #=======================================================================
+        # Computes the "candle timestamp" corresponding to a timestamp input. 
+        # That is, it will round the minutes to the nearest integer multiple of the
+        # tick interval, rounded down. 
+        # 
+        #
+        # Input: :Datetime object: - Arbitrary time stamp
+        #        :tickInterval:    - Length of each tick (e.g. 15 or 30)
+        #
+        # :returns: :Datetime object: - Time stamp for the candle
+        # 
+        # Example 1: timestamp = datetime(2019, 1, 12, 22, 17, 03, 679)
+        #            tickInterval = 30
+        #            candleTimestamp = datetime(2019, 1, 12, 22, 0, 0)
+        #
+        # Example 2: timestamp as above
+        #            tickInterval = 15
+        #            candleTimestamp = datetime(2019, 1, 12, 22, 15, 0)
+        #=======================================================================
+        return datetime(year = timestamp.year,
+                        month = timestamp.month,
+                        day = timestamp.day,
+                        hour = timestamp.hour,
+                        minute = tickInterval*(timestamp.minute // tickInterval),
+                        second = 0)
+
+    def getListOfValuesFromListOfDict(self, listOfDict, key):
+        #=======================================================================
+        # This method will construct a list of values corresponding to a specific key from a list of
+        # dictionaries. 
+        #
+        # Input is
+        #     :list: - listOfDict - List of dictionaries from which to extract data
+        #     :string: - key - The dictionary key of the desired data
+        # 
+        # :returns: List - The list of all the values contained in the dictionaries
+        #
+        # Example: l = [{'key1': 'apple',  'key2': 2},
+        #               {'key1': 'banana', 'key2': 3},
+        #               {'key1': 'cars',   'key2': 4}] 
+        #
+        # By calling getListOfValuesFromListOfDict(l, "key1") the output will be
+        #
+        # lst = ['apple', 'banana', 'cars']
+        #
+        # It assumes all the dictionaries have the required key, and that the list is well formed,
+        # i.e. that the input is indeed a list of dictionaries
+        #
+        #=======================================================================
+        return [d[key] for d in listOfDict]
 
     def initDummyCandles(self, nrCandles):
         #=======================================================================

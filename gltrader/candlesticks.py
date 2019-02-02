@@ -23,36 +23,6 @@ SECONDS_PER_MINUTE = 60
 SECONDS_PER_HOUR = MINUTES_PER_HOUR*SECONDS_PER_MINUTE
 
 class CandleSticks:
-    #Number of candles per hour... 
-    nrCandlesPerHour = 1
-    #Number of candles in a day
-    nrCandlesPerDay = nrCandlesPerHour * HOURS_PER_DAY
-    #List of all the candles for the previous day - EXCLUDING THE LAST HOUR
-    previousDayCandles = []
-    #List of the candles for the last hour
-    lastHourCandles = []
-    # Last/latest/most recent candle
-    currentCandle = []
-    #Previous day *hourly* volume average
-    volumePrevDayHrAverage = 999999999
-    #Last hour volume
-    volumeLastHour = 999999999
-    # Current/running volume (i.e. volume during the currently ongoing tick)
-    currentVol = 999999999
-    # Previous day average tick volume
-    prevDayTickVolMean = 999999999
-    # Previous day volume standard deviation
-    prevDayTickVolStdev = 999999999
-    # Previous day average tick base volume
-    prevDayTickBsVolMean = 999999999
-    # Previous day base volume standard deviation
-    prevDayTickBsVolStdev = 999999999
-    # Previous day high - 1 satoshi
-    prevDayHigh = 0.00000001
-
-    
-    #Flag - Initialization OK?
-    IsInitOK = False
     
 
     def __init__(self, allCandles, totalTimeFrame=24, tickInterval=30):
@@ -110,7 +80,7 @@ class CandleSticks:
         self.currentCandle["FTBV"] = self.estimateFullTickVolume(self.currentCandle["BV"])
         self.currentCandle["FTV"] = self.estimateFullTickVolume(self.currentCandle["V"])
         
-        # Set the derived market data for the previous day
+        # set the derived market data for the previous day
         self.setPreviousDayDerivedMktData()
 
         # Log some candles
@@ -515,6 +485,8 @@ class CandleSticks:
         # Set previous day average tick volume
         prevDayVolData = self.getAllPreviousDayVolumes()
         self.setPreviousDayTickVolMean(prevDayVolData)
+        # Set previous day average hourly volume
+        self.setPreviousDayHourVolMean(prevDayVolData)
         # Set previous day tick volume standard deviation
         self.setPreviousDayTickVolStdev(prevDayVolData, self.prevDayTickVolMean)
         # Set previous day averagve tick base volume
@@ -555,6 +527,22 @@ class CandleSticks:
             prevDayVolData = self.getAllPreviousDayVolumes()
         # Set previous day high
         self.prevDayTickVolMean = statistics.mean(prevDayVolData)
+
+    def setPreviousDayHourVolMean(self, prevDayVolData = None):
+        #=======================================================================
+        # Setter method to compute previous day hourly average volumes (altcoin volume)
+        # (Does not include the current tick... intentionally!)
+        #
+        # Inputs:
+        #     prevDayVolData - :list: with time series of previous day (altcoin) volumes
+        # 
+        # :return:    None
+        #=======================================================================
+        # If called with no data, extract it
+        if prevDayVolData is None:
+            prevDayVolData = self.getAllPreviousDayVolumes()
+        # Set previous day high
+        self.volumePrevDayHrAverage = numpy.sum(prevDayVolData)/HOURS_PER_DAY
 
     def setPreviousDayTickVolStdev(self, prevDayVolData = None, prevDayTickVolMean = None):
         #=======================================================================

@@ -69,10 +69,10 @@ class CandleSticks:
 
         # Time stamp the current candle
         self.currentCandle["LT"] = self.localCandleTimestamp
-        # Time stap previous hour candles
-        for x in range(0, len(self.lastHourCandles)):
+        # Time stamp previous hour candles
+        for x in range(0, len(self.lastHourCandles)-1):
             self.lastHourCandles[x]["LT"] = self.localCandleTimestamp + \
-                                            timedelta(hours = -1, minutes = x*tickInterval)
+                                            timedelta(hours = -1, minutes = (x+1)*tickInterval)
         # TO DO: Implement function to time stamp all candles, which are taken as input
         # TO DO: Additional input, offset hours from now (e.g. -1 for prev hr, -24 for prev day,..)
 
@@ -87,7 +87,7 @@ class CandleSticks:
         log.debug("Previous day candles: " + str(self.previousDayCandles) + "\n" +
                   "Last hour candles: " + str(self.lastHourCandles) + "\n" +
                   "Current candle: " + str(self.currentCandle))
-        
+
         #Set initialization flag all good
         self.IsInitOK = True
 

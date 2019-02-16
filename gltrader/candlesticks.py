@@ -136,20 +136,22 @@ class CandleSticks:
                     # Update full tick volume estimates
                     lastCandle["FTBV"] = self.estimateFullTickVolume(lastCandle["BV"])
                     lastCandle["FTV"] = self.estimateFullTickVolume(lastCandle["V"])
-                    # Update current candle
-                    self.currentCandle = lastCandle
 
 
-                    #Update bulk of 24hr candles
+                    # Update bulk of 24hr candles
                     self.previousDayCandles[0:self.nrCandlesPerDay-1] = self.previousDayCandles[1:self.nrCandlesPerDay]
-                    #update last daily candle
-                    self.previousDayCandles[-1] = lastCandle
+                    # Update last daily candle
+                    self.previousDayCandles[-1] = self.currentCandle
 
                     #Update bulk of last hour candles
                     self.lastHourCandles[0:self.nrCandlesPerHour-1] = self.lastHourCandles[1:self.nrCandlesPerHour]
                     # Update most recent candle of last hour
                     self.lastHourCandles[-1] = lastCandle
 
+                    # Last: Update current candle
+                    self.currentCandle = lastCandle
+
+                    
                     # Reset all the derived market data for the previous day
                     self.setPreviousDayDerivedMktData()
 

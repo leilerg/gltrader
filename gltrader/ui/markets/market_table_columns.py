@@ -32,7 +32,7 @@ class MarketTableColumns(object):
             "Ask" : self.getAskWidget() if self.market is not None else None,
             "24hr BTC Vol" : self.get24VolWidget() if self.market is not None else None,
             "Avg Tick Vol" : self.get24AvgVolWidget() if self.market is not None else None,
-            "Current Vol" : self.getLastHrVolWidget() if self.market is not None else None,
+            "Current Vol" : self.getCurrVolWidget() if self.market is not None else None,
             "Stdev off Mean" : self.getVolRatioWidget() if self.market is not None else None,
             "Monitor" : self.getMonitorWidget() if self.market is not None else None,
         }
@@ -101,15 +101,15 @@ class MarketTableColumns(object):
             return self.market.previousDayBaseVol()
         return MarketVolumeLabel(get24Vol , font_size=sp(12))
 
-    def getLastHrVolWidget(self):
+    def getCurrVolWidget(self):
         #=======================================================================
         # A getter is defined and used to create a refreshable widget
         # 
         # :returns: (Widget) a getter for the volume in the last hour 
         #=======================================================================
-        def getLastHrVol():
-            return self.market.currentBaseVol()
-        return MarketVolumeLabel(getLastHrVol, font_size=sp(12))
+        def getCurrVol():
+            return self.market.currentBaseVol(estimateFullTick=True)
+        return MarketVolumeLabel(getCurrVol, font_size=sp(12))
 
     def getVolRatioWidget(self):
         #=======================================================================

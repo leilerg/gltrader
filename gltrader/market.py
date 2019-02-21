@@ -85,27 +85,51 @@ class Market(object):
             # API query - Last candle
             lastCandle = api.get_latest_candle(self.abbr, TICKINTERVAL_THIRTYMIN)
             if lastCandle["success"] == True:
-                
-                log.debug("Update for market {:>9}".format(self.abbr) +
-                          ", Thread ID: {:>5}".format(str(threadID)) +
-                          ", Last candle: " + str(lastCandle["result"]))
 
                 self.candles.updateCandles(lastCandle["result"][0])
+                
+                log.debug("Market {:>6}".format(self.name) +
+                          ", Last candle: " + str(lastCandle["result"]))
+
             else:
                 self.guiNotify("Alert", "Last candle update (" + self.abbr + "): API_RESPONSE_MISS")
+                log.debug("Market " + self.name + ": Last candle update - API_RESPONSE_MISS")
         # First time updating candles
         else:
             # API query - All candles
             allCandles = api.get_candles(self.abbr, TICKINTERVAL_THIRTYMIN)
             if allCandles["success"] == True:
-                log.debug("Update for market {:>9}".format(self.abbr) +
-                          ", Thread ID: {:>5}".format(str(threadID)) +
+                self.candles = CandleSticks(allCandles["result"], totalTimeFrame, tickInterval)
+
+                log.debug("New market {:>6}".format(self.name) +
                           ", All Candles: " + str(allCandles['result']))
                 
-                self.candles = CandleSticks(allCandles["result"], totalTimeFrame, tickInterval)
             else:
                 self.guiNotify("Alert", "All candles update (" + self.abbr + "): API_RESPONSE_MISS")
+                log.debug("Market " + self.name + ": All candles update - API_RESPONSE_MISS")
 
+        # Log some market data
+        try:
+            log.debug("Market(tick) " + self.name + " - " +
+                      "Bid: {:10.8f}".format(self.bid()) + " | " +
+                      "Ask: {:10.8f}".format(self.ask()) + " | " +
+                      "Last: {:10.8f}".format(self.last()) + " | " +
+                      "O: {:10.8f}".format(self.currentOpen()) + " | " +
+                      "BV: {:7.4f}".format(self.currentBaseVol(estimateFullTick=True)) + " | " +
+                      "Pump Thresh {:6.3f}".format((self.currentBaseVol(estimateFullTick=True) \
+                                                    -self.previousDayTickBsVolMean()) \
+                                                   /self.previousDayTickBsVolStdev()) + "\n" +
+
+                      datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S,%f")[:-3] + ": " +
+                      "Market(24) {:<5}".format(self.name) + " - " +
+                      "BV(24): {:9.4f}".format(self.previousDayBaseVol()) + " | " +
+                      "BVmean(24): {:9.4f}".format(self.previousDayTickBsVolMean()) + " | " +
+                      "BVstdev(24): {:7.4f}".format(self.previousDayTickBsVolStdev()) + " | " +
+                      "C(24): {:10.8f}".format(self.previousDayLastClose()) +  " | " +
+                      "H(24): {:10.8f}".format(self.previousDayHigh(includeCurrent=False)))
+        except ZeroDivisionError as divByZero:
+            log.exception("Unexpected div by zero in market.updateCandles(): " + str(divByZero))
+        
 
 
     def resetLastTradeTime(self, strStrategy):
@@ -214,7 +238,11 @@ class Market(object):
         #=======================================================================
         return self.marketData.pendingBalance()
 
-
+    def reservedBalance(self):
+        #=======================================================================
+        # :returns: Double - The balance reserved for an open order
+        #=======================================================================
+        return self.marketData.reservedBalance()
 
 
 

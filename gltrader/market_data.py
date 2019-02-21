@@ -61,14 +61,28 @@ class MarketData(object):
         return self.bitcoinMarketSummary["BaseVolume"]
         
     def totalBalance(self):
+        #=======================================================================
+        # :returns: Double - The total balance of a given coin
+        #=======================================================================
         return self.balanceSummary["Balance"]
     
     def availableBalance(self):
+        #=======================================================================
+        # :returns: Double - The balance of a coin, availalbe for trade
+        #=======================================================================
         return self.balanceSummary["Available"]
     
     def pendingBalance(self):
+        #=======================================================================
+        # :returns: Double - The deposit pending balance of a coin
+        #=======================================================================
         return self.balanceSummary["Pending"]
 
+    def reservedBalance(self):
+        #=======================================================================
+        # :returns: Double - The balance reserved for an open order
+        #=======================================================================
+        return self.totalBalance() - self.availableBalance()
     
 
     def update(self, data):

@@ -3,13 +3,14 @@ from kivy.clock import Clock
 import time
 from .order import *
 from .notification import *
-from pprint import pprint as pp
-from pip._vendor.packaging import specifiers
 
 from .order_details import *
 
 import logging
 log = logging.getLogger(__name__)
+
+# from pprint import pprint as pp
+# from pip._vendor.packaging import specifiers
 
 
 class Action(object):
@@ -80,10 +81,8 @@ class OrderAction(Action):
         #===========================================================================
         if not self.complete:
             for order in self.orders:
-                if not order.isCompleted:
-                    if not order.checkOrderComplete():
-                        # Info("order not complete", self.market)
-                        return False
+                if not order.isOrderComplete():
+                    return False
                 else:
                     if not order.success:
                         self.success = False
@@ -141,23 +140,22 @@ class MarketBuyLimitSellTrade(OrderAction):
 
         # Execute order
         didBuyMarket = buyMarket.execTrade()
+
         # If trade successfull, 
         if didBuyMarket:
-            # # log some details,
-            # log.info("Trade executed!!\n" +
-            #          "Order ID: " + str(buyMarket.orderID) + "\n" +
-            #          "Quantity bought: " + str(buyMarket.qty) + "\n" +
-            #          "Rate paid: " + str(buyMarket.rate))
-            # and execute next one, limit sell
+            # Set rate precision in satoshi
+            # sellRate = round(buyMarket.tradeRate() * (1 + self._expRet), 8)
+            sellRate = round(self.market.ask() * (1 + self._expRet), 8)
 
             # Construct limit sell order details
-            sellLimitDetailsDict = {"marketName"    : buyMarket.marketName(),
-                                    "quantity"      : buyMarket.tradeQty(),
-                                    "rate"          : buyMarket.tradeRate() * (1 + self._expRet),
-                                    "orderType"     : "LIMIT",
-                                    "timeInEffect"  : buyMarket.timeInEffect(),
-                                    "conditionType" : buyMarket.conditionType(),
-                                    "target"        : 0.}
+            sellLimitDetailsDict = {"marketName"     : buyMarket.marketName(),
+                                    "quantity"       : buyMarket.tradeQty(),
+                                    "rate"           : sellRate, 
+                                    "orderType"      : "LIMIT",
+                                    "timeInEffect"   : "GOOD_TIL_CANCELLED",
+                                    "conditionType"  : buyMarket.conditionType(),
+                                    "target"         : 0.,
+                                    "validationType" : "STANDARD"}
 
             # Construct the details object
             sellLimitDetails = BittrexOrderDetails(sellLimitDetailsDict)
@@ -169,6 +167,8 @@ class MarketBuyLimitSellTrade(OrderAction):
 
             # And append
             self.orders.append(sellLimit)
+            # Sleep 2 seconds, to reduce/minimize API clogging
+            time.sleep(2)
             # Execute second trade
             didLimitSell = sellLimit.execTrade()
             # Check if all good, and log if any problems...

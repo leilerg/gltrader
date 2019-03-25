@@ -5,8 +5,9 @@ import builtins
 
 
 
-SUPPORTED_EXCHANGES    = ["BITTREX"]
-SUPPORTED_ORDER_TYPE   = ["MARKET", "LIMIT"]
+SUPPORTED_EXCHANGES             = ["BITTREX"]
+SUPPORTED_ORDER_TYPE            = ["MARKET", "LIMIT"]
+SUPPORTED_ORDER_VALIDATION_TYPE = ["NONE", "STANDARD", "FULL"]
 
 BITTREX_TIME_IN_EFFECT = ["GOOD_TIL_CANCELLED", "IMMEDIATE_OR_CANCEL", "FILL_OR_KILL"]
 BITTREX_CONDITION_TYPE = ["NONE", "GREATER_THAN", "LESS_THAN",
@@ -89,6 +90,15 @@ class OrderDetails(object):
             raise RuntimeWarning("WARNING - Missing or uknown `orderType` key in " +
                                  "Bittrex order details - Defaulting to `LIMIT`")
 
+        # Checks for the order validation type - Default = "STANDARD"
+        if not self._orderDetails.get("validationType", False) or \
+               self._orderDetails["validationType"] not in SUPPORTED_ORDER_VALIDATION_TYPE:
+            # Set default
+            self._orderDetails["validationType"] = "STANDARD"
+            # And raise warning
+            raise RuntimeWarning("Warning - Missing or unknown `validationType` key in " +
+                                 "Order Details - Defaulting to `STANDARD`")
+
     #===============================================================================================
     # These methods are expected to be available for every order, regardles of the exhange
     # Additionally, every exchange will have specific methods that must be defined as the new
@@ -123,6 +133,12 @@ class OrderDetails(object):
         # :return: The exchange where the order should be placed
         #=====================================================================================
         return self._exchange
+    
+    def validationType(self):
+        #=====================================================================================
+        # :return: Order validation type
+        #=====================================================================================
+        return self._orderDetails["validationType"]
     
     def isHealthy(self):
         #=====================================================================================

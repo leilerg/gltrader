@@ -33,13 +33,14 @@ class Order(object):
         #=======================================================================
         self.market = market
 
-        self._marketName    = orderDetails.marketName()
-        self._quantity      = orderDetails.quantity()
-        self._rate          = orderDetails.rate()
-        self._orderType     = orderDetails.orderType()
-        self._timeInEffect  = orderDetails.timeInEffect()
-        self._conditionType = orderDetails.conditionType()
-        self._target        = orderDetails.target()
+        self._marketName     = orderDetails.marketName()
+        self._quantity       = orderDetails.quantity()
+        self._rate           = orderDetails.rate()
+        self._orderType      = orderDetails.orderType()
+        self._timeInEffect   = orderDetails.timeInEffect()
+        self._conditionType  = orderDetails.conditionType()
+        self._target         = orderDetails.target()
+        self._validationType = orderDetails.validationType()
 
         self._api = tradeAPI
         if self._api.isLiveAPI():
@@ -47,46 +48,73 @@ class Order(object):
         else:
             log.debug("FAKE TRADE")
 
-        self.orderInfo = self.getOpenOrderInfo()
         self.isValid = self.validate()
+
+        if not self.isValid:
+            Error("Could not initialize Order")
+            log.info("Could not initialize order")
+
+        self._isOrderComplete = False
+        self.success = False
+        self._orderID = None
 
         # Invalid trade rate... 
         self._tradeRate = -1.
         self._tradeQty = -42.
-        
-        if not self.isValid:
-            Error("Could not initialize Order")
-            log.info("Could not initialize order")
-        self.isCompleted = False
-        self.success = False
-        self._orderID = False
-        self.failed = False
+
+
+
 
     def validate(self):
         #=======================================================================
-        # Validates based on the following criteria:
-        # - No open orders
-        # - No pending balances
-        # - That's it for now
+        # Validates the order in three cases
+        #
+        # * FULL: Validation criteria (requires API call)
+        #   - No open orders, buy or sell
+        #   - No pending balances
+        #
+        # * STEANDARD: Validation criteria (API call not required)
+        #   - No open sell orders
+        #
+        # * NONE: No validation performed
+        # 
         # :returns: (Boolean) Whether order fits criteria listed above
         #=======================================================================
         _isValid = True
 
-        if not self.orderInfo:
-            log.info("ERROR: Cannot retrieve open order info for " + self._marketName)
-            Error("Error -- Cannot retrieve open order info for " + self._marketName)
-            return False
-        
-        if self.orderInfo["buysTot"] or self.orderInfo["sellsTot"]:
-            log.info("ALERT: Open order(s) in market " + self._marketName)
-            Alert("Alert -- Open Order(s) in market " + self._marketName)
-            _isValid = False
+        # FULL vaidation - All open buy and sell orders for a given market
+        if self._validationType == "FULL":
+            orderInfo = self.getOpenOrderInfo()
 
-        if self.market.pendingBalance() > 0:
-            log.info("ALERT: Pending balance for market " + self._marketName)
-            Alert("Alert -- Pending balance in market " + self._marketName)
-            _isValid = False
+            # Cannot retrieve order info
+            if not orderInfo:
+                log.info("ERROR: Cannot retrieve open order info for " + self._marketName)
+                Error("Error -- Cannot retrieve open order info for " + self._marketName)
+                return False
+            # Pending buy/sell orders
+            if self.orderInfo["buysTot"] or self.orderInfo["sellsTot"]:
+                log.info("ALERT: Open order(s) in market " + self._marketName)
+                Alert("Alert -- Open Order(s) in market " + self._marketName)
+                _isValid = False
+            # Deposit pending
+            if self.market.pendingBalance() > 0:
+                log.info("ALERT: Pending balance for market " + self._marketName)
+                Alert("Alert -- Pending balance in market " + self._marketName)
+                _isValid = False
 
+        # STANDARD validation - No pending sell orders
+        if self._validationType == "STANDARD":
+
+            # Pending sell orders
+            # if self.market.reservedBalance() > 0:
+                # log.info("ALERT: Pending sell orders for market " + self._marketName)
+                # Alert("Alert -- Pending balance in market " + self._marketName)
+            if self.market.totalBalance() > 0:
+                log.info("ALERT: Non-zero balance in market " + self._marketName)
+                Alert("Alert -- Non-zero balance in market " + self._marketName)
+                _isValid = False
+
+        # Return validation status
         return _isValid
 
     def getOpenOrderInfo(self):
@@ -121,35 +149,35 @@ class Order(object):
             Error("Could Not fetch Open Orders--Order Invalid", self)
             return False
 
-    def checkOrderComplete(self):
-        #=======================================================================
-        # Checks whether the order has been completed.  Happens once per tick until true or destroyed
-        # 
-        # :returns: (Boolean) whether order has been completed
-        #=======================================================================
-        if self._orderID:
-            response = self._api.get_order(self._orderID)
-
-            if response["success"]:
-                if response["result"]["IsOpen"]:
-                    self.completed = False
-                else:
-                    self.completed = True
-                    self.success = True
-                    log.info("SUCCESS: " + self._orderType + " " + self._buyOrSell +
-                             " for market " + self._marketName + " executed successfully" + 
-                             "\nOrder ID " + self._orderID)
-                   #  Alert("SUCCESS! Order for market " + self._orderID + " executed", self)  
-                    return True
-            else:
-                log.critical("ERROR: Could not check order status for OrderID: " + str(self._orderID))
-                # Error("Could Not Check Order Status: " + str(self._orderID), self)
-        else:
-            log.critical("ERROR: Could not find Order ID --- Status unknown")
-            # Error("Could not find Order ID --- Status uknown", self)
-            
-          
-        return False
+    # def checkOrderComplete(self):
+    #     #=======================================================================
+    #     # Checks whether the order has been completed.  Happens once per tick until true or destroyed
+    #     # 
+    #     # :returns: (Boolean) whether order has been completed
+    #     #=======================================================================
+    #     if self._orderID is not None:
+    #         response = self._api.get_order(self._orderID)
+    #         log.info(response)
+    #        
+    #         if response["success"]:
+    #             if response["result"]["IsOpen"]:
+    #                 self.completed = False
+    #             else:
+    #                 self.completed = True
+    #                 self._isOrderComplete = True
+    #                 log.info("SUCCESS: " + self._orderType + " " + self._buyOrSell +
+    #                          " for market " + self._marketName + " executed successfully" + 
+    #                          "\nOrder ID " + self._orderID)
+    #                #  Alert("SUCCESS! Order for market " + self._orderID + " executed", self)  
+    #                 return True
+    #         else:
+    #             log.critical("ERROR: Could not check order status for OrderID: " + str(self._orderID))
+    #             # Error("Could Not Check Order Status: " + str(self._orderID), self)
+    #     else:
+    #         log.critical("ERROR: Could not find Order ID --- Status unknown")
+    #         # Error("Could not find Order ID --- Status uknown", self)
+    #      
+    #     return False
 
     def cancel(self):
         #=======================================================================
@@ -158,10 +186,13 @@ class Order(object):
         # :returns: (Boolean) whether API call was successful
         # ..todo:: test this method
         #=======================================================================
-        if(self._orderID):
+        if self._orderID is not None:
+            # Reset order completeness status
+            self._isOrderComplete = False
+            # Attempt order cancel
             response = self._api.cancel(self._orderID)
             if response["success"]:
-                self.completed = True
+                self._isOrderComplete = True
                 return True
             else:
                 Error("Error in Cancellation ---"+response["message"], self)
@@ -182,28 +213,31 @@ class Order(object):
             self._orderID   = bittrexTradeResponse["result"]["OrderId"]
             orderType = bittrexTradeResponse["result"]["OrderType"]
 
+            grepInfo = self._marketName + " TRADE - "
+
             # Initialize log details defaults - BUY order
-            logHeader       = orderType + " BUY Order executed!!"
+            logHeader       = orderType + " Order executed!!"
             logOrderID      = "Order ID: " + str(self._orderID)
-            logBuySellCoins = "Bought: {:11.4}".format(self._tradeQty) + " " + self.market.name
-            logRatePaid     = "Effective rate: {:10.8}".format(self._tradeRate)
-            logMarketBidAsk = "Market ASK: {:10.8}".format(self.market.ask())
-            logTotalAmount  = "Total cost: {:10.8}".format(self._tradeRate * self._tradeQty)
+            logBuySellCoins = "Bought: {:13.8f}".format(self._tradeQty) + " " + self.market.name
+            logRatePaid     = "Effective rate: {:10.8f}".format(self._tradeRate)
+            logMarketBidAsk = "Market ASK: {:10.8f}".format(self.market.ask())
+            logTotalAmount  = "Total cost: {:10.8f}".format(self._tradeRate * self._tradeQty)
             
             # Overrides for SELL orders
             if bittrexTradeResponse["result"]["BuyOrSell"] == "Sell":
-                logHeader       = orderType + " SELL Order executed!!"
-                logBuySellCoins = "Sold: {:11.4}".format(self._tradeQty) + " " + self.market.name
-                logMarketBidAsk = "Market BID: {:10.8}".format(self.market.bid())
-                logTotalAmount  = "Total proceeds: {:10.8}".format(self._tradeRate*self._tradeQty)
+                logHeader       = orderType + " Order executed!!"
+                logBuySellCoins = "Sold: {:13.8f}".format(self._tradeQty) + " " + self.market.name
+                logMarketBidAsk = "Market BID: {:10.8f}".format(self.market.bid())
+                logTotalAmount  = "Total proceeds: {:10.8f}".format(self._tradeRate*self._tradeQty)
 
             # Log to file
-            log.info(logHeader       + "\n" +
-                     logOrderID      + "\n" +
-                     logBuySellCoins + "\n" +
-                     logRatePaid     + "\n" +
-                     logMarketBidAsk + "\n" +
-                     logTotalAmount  + "\n")
+            log.info(grepInfo + str(bittrexTradeResponse) + "\n" +
+                     grepInfo + logHeader       + "\n" +
+                     grepInfo + logOrderID      + "\n" +
+                     grepInfo + logBuySellCoins + "\n" +
+                     grepInfo + logRatePaid     + "\n" +
+                     grepInfo + logMarketBidAsk + "\n" +
+                     grepInfo + logTotalAmount  + "\n")
             
             # Log to GUI
             Success(logHeader)
@@ -264,7 +298,6 @@ class Order(object):
         #=======================================================================
         return self._target
 
-
     def orderID(self):
         #=======================================================================
         # :returns: String - The order ID after a trade is exacuted
@@ -284,6 +317,18 @@ class Order(object):
         #=======================================================================
         return self._tradeQty
 
+    def isOrderComplete(self):
+        #=======================================================================
+        # :returns: Bool - Is the order complete
+        #=======================================================================
+        return self._isOrderComplete
+
+
+
+
+
+
+
 
 
 
@@ -294,11 +339,14 @@ class BuyOrder(Order):
     isBuy = True
     _buyOrSell = "BUY"
 
-    
-
     def execTrade(self):
-        if (self.isValid):
+        # Reset order status
+        self.success = False
+        # Reset order complete status
+        self._isOrderComplete = False
 
+        if (self.isValid):
+            # Place buy order
             response = self._api.trade_buy(market         = self._marketName,
                                            quantity       = self._quantity,
                                            rate           = self._rate,
@@ -309,26 +357,33 @@ class BuyOrder(Order):
             # Log response
             self.logTradeResponse(response)
             # Return
-            return response["result"]["OrderId"]
-
+            if response.get("success", False):
+                self._isOrderComplete = True
+                self.success = True
+                return response["result"]["OrderId"]
+            else:
+                self._isOrderComplete = True
+                return False
         else:
             log.critical("Invalid order prevented from execution for market " + self._marketName)
             Error("Invalid Order Prevented from execution")
-        self.completed = True
-        self.failed = True
         return False
-
 
 class SellOrder(Order):
     #============================================
-    # Child of Order that executes buys
+    # Child of Order that executes sells
     #============================================
     isSell = True
     _buyOrSell = "SELL"
 
     def execTrade(self):
-        if (self.isValid):
+        # Reset order status
+        self.success = False
+        # Reset order complete status
+        self._isOrderComplete = False
 
+        if (self.isValid):
+            # Place sell order
             response = self._api.trade_sell(market         = self._marketName,
                                             quantity       = self._quantity,
                                             rate           = self._rate,
@@ -339,240 +394,81 @@ class SellOrder(Order):
             # Log response
             self.logTradeResponse(response)
             # Return
-            return response["result"]["OrderId"]
-
+            if response.get("success", False):
+                self._isOrderComplete = True
+                self.success = True
+                return response["result"]["OrderId"]
+            else:
+                self._isOrderComplete = True
+                return False
         else:
             log.critical("Invalid order prevented from execution for market " + self._marketName)
             Error("Invalid Order Prevented from execution")
-        self.completed = True
-        self.failed = True
         return False
-
 
 class LimitBuy(BuyOrder):
     #===========================================================================
-    # Creates a Market Buy order
+    # Creates a Limit Buy order
     #===========================================================================
     def __init__(self, market, orderDetails, tradeAPI):
         super().__init__(market, orderDetails, tradeAPI)
-        self._orderType = "LIMIT"
+        self._orderType = "LIMIT_BUY"
 
-class MarketBuy(BuyOrder):
+class MarketBuy(LimitBuy):
     #===========================================================================
-    # Creates a Market Buy order
+    # Creates a Market Buy order for Bittrex:
+    # - Time in Effect: IMMEDIATE_OR_CANCEL (no lingering limit orders)
+    # - Rate is increased significantly to ensure the full order goes through
+    # - Assumes the quantity to buy is estimated elsewhere
     #===========================================================================
     def __init__(self, market, orderDetails, tradeAPI):
         super().__init__(market, orderDetails, tradeAPI)
-        self._orderType = "MARKET"
-        # Override rate to None for live trades
-        if self._api.isLiveAPI():
-            self._rate = None
+        self._timeInEffect = "IMMEDIATE_OR_CANCEL"
+        self._rate = round(10.*self._rate, 8)
 
 class LimitSell(SellOrder):
     #===========================================================================
-    # Creates market Sell, estimating qty and rate from latest tick
+    # Creates a Limit Sell
     #===========================================================================
     def __init__(self, market, orderDetails, tradeAPI):
         super().__init__(market, orderDetails, tradeAPI)
-        self._orderType = "LIMIT"
+        self._orderType = "LIMIT_SELL"
 
-class MarketSell(SellOrder):
+class MarketSell(LimitSell):
     #===========================================================================
-    # Creates market Sell, estimating qty and rate from latest tick
+    # Creates a Market Sell order for Bittrex:
+    # - Time in Effect: IMMEDIATE_OR_CANCEL (no lingering limit orders)
+    # - Rate is decreased significantly to ensure the full order goes through
+    # - Assumes the quantity to sell is estimated elsewhere
     #===========================================================================
     def __init__(self, market, orderDetails, tradeAPI):
         super().__init__(market, orderDetails, tradeAPI)
-        self._orderType = "MARKET"
-        # Override rate to None for live trades
-        if self._api.isLiveAPI():
-            self._rate = None
+        self._timeInEffect = "IMMEDIATE_OR_CANCEL"
+        self._rate = round(0.1*self._rate, 8)
 
 
 
-
-
-
-# class LimitBuy(Order):
-#     #============================================
-#     # Child of Order that executes Limit Buys
-#     #============================================
-#     isBuy = True
-#     _orderType = "LIMIT"
-
-#     def execTrade(self):
-#         if (self.isValid):
-
-#             response = self._api.trade_buy(market         = self._marketName,
-#                                           quantity       = self._quantity,
-#                                           rate           = self._rate,
-#                                           order_type     = self._orderType,
-#                                           time_in_effect = self._timeInEffect,
-#                                           condition      = self._conditionType,
-#                                           target         = self._target)
-
-#             # Log response
-#             self.logTradeResponse(response)
-#             # Return
-#             return response["result"]["Order ID"]
-            
-
-#             # if response["success"]:
-#             #     self.isActive = True
-#             #     self._tradeRate = float(response["result"]["Rate"])
-#             #     self._tradeQty  = float(response["result"]["Quantity"])
-#             #     self._orderID = response["result"]["OrderId"]
-#             #     # log some details,
-#             #     log.info("BUY Order executed!!\n" +
-#             #              "Order ID: " + str(self._orderID) + "\n" +
-#             #              "Bought: " + str(self._tradeQty) + " " + self.market.name + "\n" +
-#             #              "Rate paid: {:10.8}".format(self._tradeRate) + "\n" +
-#             #              "Total amount: " + str(self._tradeRate*self._tradeQty))
-#             #     Success("BUY Order Executed! ")
-#             #     Success("Bought: {:16.8f}".format(self._tradeQty) + " " + self.market.name)
-#             #     Success("Rate: {:10.8f}".format(self._tradeRate)) 
-#             #     Success("ASK: {:10.8f} ".format(self.market.ask()))
-#             #     Success("Total amount: {:10.8f} ".format(self._tradeRate*self._tradeQty))
-#             #     return response["result"]["OrderId"]
-#             # else:
-#             #     Error("Order Failed: "+response["message"])
-#         else:
-#             log.critical("Invalid order prevented from execution")
-#             Error("Invalid Order Prevented from execution")
-#         self.completed = True
-#         self.failed = True
-#         return False
-
-
-# class LimitSell(Order):
-#     #============================================
-#     # Child of Order that executes Limit Sells
-#     #============================================
-#     isSell = True
-#     _orderType = "LIMIT"
-
-#     def execTrade(self):
-#         if (self.isValid):
-#             response = self._api.trade_sell(market         = self._marketName,
-#                                            quantity       = self._quantity,
-#                                            rate           = self._rate,
-#                                            order_type     = self._orderType,
-#                                            time_in_effect = self._timeInEffect,
-#                                            condition      = self._conditionType,
-#                                            target         = self._target)
-
-#             # Log response
-#             self.logTradeResponse(response)
-#             # Return
-#             return response["result"]["Order ID"]
-            
-#             # if response["success"]:
-#             #     self.isActive = True
-#             #     self._tradeRate = float(response["result"]["Rate"])
-#             #     self._tradeQty  = float(response["result"]["Quantity"])
-#             #     self._orderID = response["result"]["OrderId"]
-#             #     # log some details,
-#             #     log.info("SELL Order executed!!\n" +
-#             #              "Order ID: " + str(self._orderID) + "\n" +
-#             #              "Bought: " + str(self._tradeQty) + " " + self.market.name + "\n" +
-#             #              "Rate paid: {:10.8}".format(self._tradeRate) + "\n" +
-#             #              "Total amount: " + str(self._tradeRate*self._tradeQty))
-#             #     Success("SELL Order Executed! ")
-#             #     Success("Sold: {:16.8f}".format(self._tradeQty) + " " + self.market.name)
-#             #     Success("Rate: {:10.8f}".format(self._tradeRate)) 
-#             #     Success("BID: {:10.8f} ".format(self.market.bid()))
-#             #     Success("Total amount: {:10.8f} ".format(self._tradeRate*self._tradeQty))
-#             #     return response["result"]["OrderId"]
-#             # else:
-#             #     Error("Order Failed: "+response["message"])
-#         else:
-#             log.critical("Invalid order prevented from execution")
-#             Error("Invalid Order Prevented from execution")
-            
-#         self.completed = True
-#         self.failed = True
-#         return False
-
-
-# class MarketBuy(Order):
-#     #============================================
-#     # Child of Order that executes Limit Buys
-#     #============================================
-#     isBuy = True
-#     _orderType = "MARKET"
-#     _rate = None
-
-#     def execTrade(self):
-#         if (self.isValid):
-
-#             response = self._api.trade_buy(market         = self._marketName,
-#                                           quantity       = self._quantity,
-#                                           rate           = self._rate,
-#                                           order_type     = self._orderType,
-#                                           time_in_effect = self._timeInEffect,
-#                                           condition      = self._conditionType,
-#                                           target         = self._target)
-
-#             # Log response
-#             self.logTradeResponse(response)
-#             # Return
-#             return response["result"]["Order ID"]
-
-#         else:
-#             log.critical("Invalid order prevented from execution")
-#             Error("Invalid Order Prevented from execution")
-#         self.completed = True
-#         self.failed = True
-#         return False
-
-
-# class MarketSell(Order):
-#     #============================================
-#     # Child of Order that executes Limit Sells
-#     #============================================
-#     isSell = True
-#     _orderType = "MARKET"
-#     _rate = None
-
-#     def execTrade(self):
-#         if (self.isValid):
-#             response = self._api.trade_sell(market         = self._marketName,
-#                                            quantity       = self._quantity,
-#                                            rate           = self._rate,
-#                                            order_type     = self,_orderType,
-#                                            time_in_effect = self._timeInEffect,
-#                                            condition      = self._conditionType,
-#                                            target         = self._target)
-
-#             # Log response
-#             self.logTradeResponse(response)
-#             # Return
-#             return response["result"]["Order ID"]
-
-#         else:
-#             log.critical("Invalid order prevented from execution")
-#             Error("Invalid Order Prevented from execution")
-            
-#         self.completed = True
-#         self.failed = True
-#         return False
-
-
-
-# class MarketOrder(Order):
-#     #===========================================================================
-#     # Changes order to Market order --- Should never be called alone
-#     #===========================================================================
-#     orderType = "MARKET"
-#     rate = None
-
-# class MarketBuy(MarketOrder, BuyOrder):
+# class MarketBuy(BuyOrder):
 #     #===========================================================================
 #     # Creates a Market Buy order
 #     #===========================================================================
+#     def __init__(self, market, orderDetails, tradeAPI):
+#         super().__init__(market, orderDetails, tradeAPI)
+#         self._orderType = "MARKET"
+#         # Override rate to None for live trades
+#         if self._api.isLiveAPI():
+#             self._rate = None
 
-# class MarketSell(MarketOrder, SellOrder):
+
+# class MarketSell(SellOrder):
 #     #===========================================================================
-#     # Creates market Sell, estimating qty and rate from latest tick
+#     # Creates market Sell
 #     #===========================================================================
-    
+#     def __init__(self, market, orderDetails, tradeAPI):
+#         super().__init__(market, orderDetails, tradeAPI)
+#         self._orderType = "MARKET"
+#         # Override rate to None for live trades
+#         if self._api.isLiveAPI():
+#             self._rate = None
+
 

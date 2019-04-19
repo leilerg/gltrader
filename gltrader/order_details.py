@@ -42,6 +42,12 @@ class OrderDetails(object):
         #                      Valid options are:
         #                      * "LIMIT" (default)
         #                      * "MARKET"
+        # - "balances"       : (dictionary) Various balances for a given `marketName`
+        #   * "total"        : (double) Total ALT balance (sum of all ALT balances)
+        #   * "available"    : (double) ALT balance available to trade
+        #   * "reserved"     : (double) ALT balance reserved for trades (in exisitng orders)
+        #   * "pending"      : (double) ALT pending balance (awaiting confirmations)
+        #   * "avilableBTC"  : (double) BTC balance available to trade
         #
         # Additional keys, and the checks/conditions related to them, should be specified in the
         # related subclasses.
@@ -67,20 +73,53 @@ class OrderDetails(object):
         # Check for supported exchange...
         if self._exchange not in SUPPORTED_EXCHANGES:
             self._isHealthy = False
-            raise ValueError("CRITICAL ERROR - '" + str(self._exchange) + "' is not a supported exchange")
-        # Check for trade market
+            raise ValueError("CRITICAL ERROR - '" + str(self._exchange) +
+                             "' is not a supported exchange") 
+        # Check for trade market 
         if not self._orderDetails.get("marketName", False):
             self._isHealthy = False
-            raise KeyError("CRITICAL ERROR - Missing `market` key in Bittrex order details")
+            raise KeyError("CRITICAL ERROR - Missing `market` key in order_details[]")
         # Check for trade quantity
         if not self._orderDetails.get("quantity", False):
             self._isHealthy = False
-            raise KeyError("CRITICAL ERROR - Missing `quantity` key in Bittrex order details")
+            raise KeyError("CRITICAL ERROR - Missing or null `quantity` key in order details[]")
         # Check for trade fx rate
+        # TO DO: The `rate` must now be a dictionary: Enhance checks to see if it contains all 
+        # the important/key info 
         if not self._orderDetails.get("rate", False):
             self._isHealthy = False
-            raise KeyError("CRITICAL ERROR - Missing `rate` key in Bittrex order details")
+            raise KeyError("CRITICAL ERROR - Missing or null `rate` key in order details[]")
 
+        # Check for market balances
+        if not self._orderDetails.get("balances", False):
+            self._isHealthy = False
+            raise KeyError("CRITICAL ERROR - Missing `balances` in order_details[]")
+
+        # Check for BTC balances available for trade - At this point I know the key is in the dictionary
+        if self._orderDetails["balances"].get("availableBTC", None) is None:
+            self._isHealthy = False
+            raise KeyError("CRITICAL ERROR - Missing `availableBTC` in order_details[\"balances\"]")
+        
+        # Check for total ALT balance - At this point I know the key is in the dictionary
+        if self._orderDetails["balances"].get("total", None) is None:
+            self._isHealthy = False
+            raise KeyError("CRITICAL ERROR - Missing `total` in order_details[\"balances\"]")
+        
+        # Check for available ALT balance - At this point I know the key is in the dictionary
+        if self._orderDetails["balances"].get("available", None) is None:
+            self._isHealthy = False
+            raise KeyError("CRITICAL ERROR - Missing `available` in order_details[\"balances\"]")
+        
+        # Check for reserved ALT balance - At this point I know the key is in the dictionary
+        if self._orderDetails["balances"].get("reserved", None) is None:
+            self._isHealthy = False
+            raise KeyError("CRITICAL ERROR - Missing `reserved` in order_details[\"balances\"]")
+        
+        # Check for pending ALT balance - At this point I know the key is in the dictionary
+        if self._orderDetails["balances"].get("pending", None) is None:
+            self._isHealthy = False
+            raise KeyError("CRITICAL ERROR - Missing `pending` in order_details[\"balances\"]")
+        
         # Checks for the non-critical order details (defaults are set)
         if not self._orderDetails.get("orderType", False) or \
                self._orderDetails["orderType"] not in SUPPORTED_ORDER_TYPE:
@@ -96,9 +135,12 @@ class OrderDetails(object):
             # Set default
             self._orderDetails["validationType"] = "STANDARD"
             # And raise warning
-            raise RuntimeWarning("Warning - Missing or unknown `validationType` key in " +
+            raise RuntimeWarning("WARNING - Missing or unknown `validationType` key in " +
                                  "Order Details - Defaulting to `STANDARD`")
 
+        # TO DO: Enhance checks - "balances" not required when performing a `FULL` validation of the order
+        
+        
     #===============================================================================================
     # These methods are expected to be available for every order, regardles of the exhange
     # Additionally, every exchange will have specific methods that must be defined as the new
@@ -106,19 +148,19 @@ class OrderDetails(object):
     #===============================================================================================
     def marketName(self):
         #=====================================================================================
-        # :return: The market to trade (e.g. BTC-LTC)
+        # :return: (string literal) The market to trade (e.g. "BTC-LTC")
         #=====================================================================================
         return self._orderDetails["marketName"]
 
     def orderType(self):
         #=====================================================================================
-        # :return: The order type ("MARKET" or "LIMIT")
+        # :return: (string literal) The order type ("MARKET" or "LIMIT")
         #=====================================================================================
         return self._orderDetails["orderType"]
 
     def quantity(self):
         #=====================================================================================
-        # :return: The quantity of shitcoins to trade
+        # :return: (double) The quantity of shitcoins to trade
         #=====================================================================================
         return self._orderDetails["quantity"]
         
@@ -130,15 +172,51 @@ class OrderDetails(object):
 
     def exchange(self):
         #=====================================================================================
-        # :return: The exchange where the order should be placed
+        # :return: (string literal) The exchange where the order should be placed
         #=====================================================================================
         return self._exchange
     
     def validationType(self):
         #=====================================================================================
-        # :return: Order validation type
+        # :return: (string literal) Order validation type
         #=====================================================================================
         return self._orderDetails["validationType"]
+    
+    def balances(self):
+        #=====================================================================================
+        # :return: (dict) Dictionary of all balances
+        #=====================================================================================
+        return self._orderDetails["balances"]
+
+    def bitcoinBalance(self):
+        #=====================================================================================
+        # :return: (double) Available BTC balance for trading
+        #=====================================================================================
+        return self._orderDetails["balances"]["balanceBTC"]
+
+    def totalBalance(self):
+        #=====================================================================================
+        # :return: (double) Total ALT balance (sum of all ALT balances)
+        #=====================================================================================
+        return self._orderDetails["balances"]["total"]
+    
+    def availableBalance(self):
+        #=====================================================================================
+        # :return: (double) Available ALT balance for trading
+        #=====================================================================================
+        return self._orderDetails["balances"]["available"]
+    
+    def pendingBalance(self):
+        #=====================================================================================
+        # :return: (double) Pending ALT balance (awaiting confirmations)
+        #=====================================================================================
+        return self._orderDetails["balances"]["pending"]
+    
+    def reservedBalance(self):
+        #=====================================================================================
+        # :return: (double) Reserved ALT balance (reserved in other trades)
+        #=====================================================================================
+        return self._orderDetails["balances"]["reserved"]
     
     def isHealthy(self):
         #=====================================================================================
@@ -147,7 +225,17 @@ class OrderDetails(object):
         return self._isHealthy
 
 
-
+    def pop(self, key):
+        #=====================================================================================
+        # Input:
+        # - key : (String literal) - The dictionary key
+        # 
+        # :return: orderDetails[key] and removes `key` from dictionary
+        # (Equivalent to dictionary.pop(key))
+        #=====================================================================================
+        return self._orderDetails.pop(key)
+        
+    
     
 
 

@@ -12,7 +12,7 @@ class Order(object):
     # 
     # Orders are the objects which interface with API trades.  
     # They implement the last-defense safety checks and log important notifications. 
-    # Child functions should be careful to implement execTrade and set all object properties with
+    # Child functions should be careful to implement execOrder and set all object properties with
     # the API response 
     # 
     # Some of the methods are not fully utilized, or could most likely be
@@ -23,16 +23,13 @@ class Order(object):
     #===========================================================================
     
     
-    def __init__(self, market, orderDetails, tradeAPI):
+    def __init__(self, orderDetails, tradeAPI):
         #=======================================================================
         # On init, the order is validated and important properties set
         # 
-        # :param market: (Market) - the market object that the order is for
         # :param orderDetails: (OrderDetails) - The object with all the order details
         # :param tradeAPI: (API) - Exchange API object (could be a fake API to use for testing)
         #=======================================================================
-        self.market = market
-
         self._marketName     = orderDetails.marketName()
         self._quantity       = orderDetails.quantity()
         self._rate           = orderDetails.rate()
@@ -40,19 +37,27 @@ class Order(object):
         self._timeInEffect   = orderDetails.timeInEffect()
         self._conditionType  = orderDetails.conditionType()
         self._target         = orderDetails.target()
-        self._validationType = orderDetails.validationType()
+
+        # Get altcoin name - First for characters of market name are "BTC-", so the name of the
+        # altcoin is everything else (could be 3 letters ("RVN"), 4 ("LOOM") or 5 ("STEEM"))
+        self._altName    = self._marketName[4:]
+
+        # These settings are not required after init/validation
+        validationType       = orderDetails.pop("validationType")
+        balances             = orderDetails.balances()
+
+        self.isValid = self.validate(validationType, balances)
+
+        if not self.isValid:
+            Error("Could not initialize Order")
+            log.info("Could not initialize order")
+
 
         self._api = tradeAPI
         if self._api.isLiveAPI():
             log.debug("LIVE TRADE")
         else:
             log.debug("FAKE TRADE")
-
-        self.isValid = self.validate()
-
-        if not self.isValid:
-            Error("Could not initialize Order")
-            log.info("Could not initialize order")
 
         self._isOrderComplete = False
         self.success = False
@@ -65,7 +70,7 @@ class Order(object):
 
 
 
-    def validate(self):
+    def validate(self, validationType, marketBalances):
         #=======================================================================
         # Validates the order in three cases
         #
@@ -77,13 +82,18 @@ class Order(object):
         #   - No open sell orders
         #
         # * NONE: No validation performed
+        #
+        #
+        # Inputs:
+        # - :validationType: (string literal) Specifies which validation should be perfomed
+        # - :marketBalances: (dict) Dictionary with various balances for a given market 
         # 
         # :returns: (Boolean) Whether order fits criteria listed above
         #=======================================================================
         _isValid = True
 
         # FULL vaidation - All open buy and sell orders for a given market
-        if self._validationType == "FULL":
+        if validationType == "FULL":
             orderInfo = self.getOpenOrderInfo()
 
             # Cannot retrieve order info
@@ -92,24 +102,24 @@ class Order(object):
                 Error("Error -- Cannot retrieve open order info for " + self._marketName)
                 return False
             # Pending buy/sell orders
-            if self.orderInfo["buysTot"] or self.orderInfo["sellsTot"]:
+            if orderInfo["buysTot"] or orderInfo["sellsTot"]:
                 log.info("ALERT: Open order(s) in market " + self._marketName)
                 Alert("Alert -- Open Order(s) in market " + self._marketName)
                 _isValid = False
             # Deposit pending
-            if self.market.pendingBalance() > 0:
+            if marketBalances["pending"] > 0:
                 log.info("ALERT: Pending balance for market " + self._marketName)
                 Alert("Alert -- Pending balance in market " + self._marketName)
                 _isValid = False
 
         # STANDARD validation - No pending sell orders
-        if self._validationType == "STANDARD":
+        if validationType == "STANDARD":
 
             # Pending sell orders
-            # if self.market.reservedBalance() > 0:
+            # if marketBalances["reserved"] > 0:
                 # log.info("ALERT: Pending sell orders for market " + self._marketName)
                 # Alert("Alert -- Pending balance in market " + self._marketName)
-            if self.market.totalBalance() > 0:
+            if marketBalances["total"] > 0:
                 log.info("ALERT: Non-zero balance in market " + self._marketName)
                 Alert("Alert -- Non-zero balance in market " + self._marketName)
                 _isValid = False
@@ -196,9 +206,11 @@ class Order(object):
                 return True
             else:
                 Error("Error in Cancellation ---"+response["message"], self)
+                log.info("Error in order cancellation - " + response["message"])
 
         else:
             Error("Could not find Order ID -- Cancel Failed", self)
+            log.info("Could not find Order ID - Cancel failed")
         return False
 
 
@@ -218,16 +230,16 @@ class Order(object):
             # Initialize log details defaults - BUY order
             logHeader       = orderType + " Order executed!!"
             logOrderID      = "Order ID: " + str(self._orderID)
-            logBuySellCoins = "Bought: {:13.8f}".format(self._tradeQty) + " " + self.market.name
+            logBuySellCoins = "Bought: {:13.8f}".format(self._tradeQty) + " " + self._altName
             logRatePaid     = "Effective rate: {:10.8f}".format(self._tradeRate)
-            logMarketBidAsk = "Market ASK: {:10.8f}".format(self.market.ask())
+            logMarketBidAsk = "Market ASK: {:10.8f}".format(self._rate["ask"])
             logTotalAmount  = "Total cost: {:10.8f}".format(self._tradeRate * self._tradeQty)
             
             # Overrides for SELL orders
             if bittrexTradeResponse["result"]["BuyOrSell"] == "Sell":
                 logHeader       = orderType + " Order executed!!"
-                logBuySellCoins = "Sold: {:13.8f}".format(self._tradeQty) + " " + self.market.name
-                logMarketBidAsk = "Market BID: {:10.8f}".format(self.market.bid())
+                logBuySellCoins = "Sold: {:13.8f}".format(self._tradeQty) + " " + self._altName
+                logMarketBidAsk = "Market BID: {:10.8f}".format(self._rate["bid"])
                 logTotalAmount  = "Total proceeds: {:10.8f}".format(self._tradeRate*self._tradeQty)
 
             # Log to file
@@ -271,7 +283,7 @@ class Order(object):
         #=======================================================================
         # :returns: Double - The FX rate at which to place the order
         #=======================================================================
-        return self._rate
+        return self._rate["trade"]
 
     def orderType(self):
         #=======================================================================
@@ -339,7 +351,7 @@ class BuyOrder(Order):
     isBuy = True
     _buyOrSell = "BUY"
 
-    def execTrade(self):
+    def execOrder(self):
         # Reset order status
         self.success = False
         # Reset order complete status
@@ -349,7 +361,7 @@ class BuyOrder(Order):
             # Place buy order
             response = self._api.trade_buy(market         = self._marketName,
                                            quantity       = self._quantity,
-                                           rate           = self._rate,
+                                           rate           = self._rate["trade"],
                                            order_type     = self._orderType,
                                            time_in_effect = self._timeInEffect,
                                            condition_type = self._conditionType,
@@ -376,7 +388,7 @@ class SellOrder(Order):
     isSell = True
     _buyOrSell = "SELL"
 
-    def execTrade(self):
+    def execOrder(self):
         # Reset order status
         self.success = False
         # Reset order complete status
@@ -386,7 +398,7 @@ class SellOrder(Order):
             # Place sell order
             response = self._api.trade_sell(market         = self._marketName,
                                             quantity       = self._quantity,
-                                            rate           = self._rate,
+                                            rate           = self._rate["trade"],
                                             order_type     = self._orderType,
                                             time_in_effect = self._timeInEffect,
                                             condition_type = self._conditionType,
@@ -410,8 +422,8 @@ class LimitBuy(BuyOrder):
     #===========================================================================
     # Creates a Limit Buy order
     #===========================================================================
-    def __init__(self, market, orderDetails, tradeAPI):
-        super().__init__(market, orderDetails, tradeAPI)
+    def __init__(self, orderDetails, tradeAPI):
+        super().__init__(orderDetails, tradeAPI)
         self._orderType = "LIMIT_BUY"
 
 class MarketBuy(LimitBuy):
@@ -421,17 +433,17 @@ class MarketBuy(LimitBuy):
     # - Rate is increased significantly to ensure the full order goes through
     # - Assumes the quantity to buy is estimated elsewhere
     #===========================================================================
-    def __init__(self, market, orderDetails, tradeAPI):
-        super().__init__(market, orderDetails, tradeAPI)
+    def __init__(self, orderDetails, tradeAPI):
+        super().__init__(orderDetails, tradeAPI)
         self._timeInEffect = "IMMEDIATE_OR_CANCEL"
-        self._rate = round(10.*self._rate, 8)
+        self._rate["trade"] = round(10.*self._rate["trade"], 8)
 
 class LimitSell(SellOrder):
     #===========================================================================
     # Creates a Limit Sell
     #===========================================================================
-    def __init__(self, market, orderDetails, tradeAPI):
-        super().__init__(market, orderDetails, tradeAPI)
+    def __init__(self, orderDetails, tradeAPI):
+        super().__init__(orderDetails, tradeAPI)
         self._orderType = "LIMIT_SELL"
 
 class MarketSell(LimitSell):
@@ -441,10 +453,10 @@ class MarketSell(LimitSell):
     # - Rate is decreased significantly to ensure the full order goes through
     # - Assumes the quantity to sell is estimated elsewhere
     #===========================================================================
-    def __init__(self, market, orderDetails, tradeAPI):
-        super().__init__(market, orderDetails, tradeAPI)
+    def __init__(self, orderDetails, tradeAPI):
+        super().__init__(orderDetails, tradeAPI)
         self._timeInEffect = "IMMEDIATE_OR_CANCEL"
-        self._rate = round(0.1*self._rate, 8)
+        self._rate["trade"] = round(0.1*self._rate["trade"], 8)
 
 
 

@@ -59,8 +59,17 @@ class Order(object):
         else:
             log.debug("FAKE TRADE")
 
+        # Has the order been completed successfully?
+        # E.g. placed limit order, which is now open on exchange.
         self._isOrderComplete = False
-        self.success = False
+
+        
+        # Is there an open order on the exchange?
+        # Different from self._isOrderComplete as a completed limit order will be open, but a
+        # completed market order will not be open (cannot be open, if constructed properly)
+        self._isOrderOpen = False
+
+        
         self._orderID = None
 
         # Invalid trade rate... 
@@ -195,14 +204,19 @@ class Order(object):
         # 
         # :returns: (Boolean) whether API call was successful
         # ..todo:: test this method
+        #
+        # After canceling an order, the ordre should be flushed as, by definition,
+        # the order doesn't exist anymore.
         #=======================================================================
         if self._orderID is not None:
-            # Reset order completeness status
-            self._isOrderComplete = False
+            # # Reset order completeness status
+            # self._isOrderComplete = False
             # Attempt order cancel
             response = self._api.cancel(self._orderID)
             if response["success"]:
-                self._isOrderComplete = True
+                # self._isOrderComplete = True
+                # Flag order not open anymore (this should be followed by flushing this specific order)
+                self._isOrderOpen = False
                 return True
             else:
                 Error("Error in Cancellation ---"+response["message"], self)
@@ -353,7 +367,7 @@ class BuyOrder(Order):
 
     def execOrder(self):
         # Reset order status
-        self.success = False
+        self._isOrderOpen = False
         # Reset order complete status
         self._isOrderComplete = False
 
@@ -370,11 +384,13 @@ class BuyOrder(Order):
             self.logTradeResponse(response)
             # Return
             if response.get("success", False):
+                # Set order complete
                 self._isOrderComplete = True
-                self.success = True
+                # If limit order, set order open (market order does not remain "open"...)
+                if self._orderType == "LIMIT_BUY":
+                    self._isOrderOpen = True
                 return response["result"]["OrderId"]
             else:
-                self._isOrderComplete = True
                 return False
         else:
             log.critical("Invalid order prevented from execution for market " + self._marketName)
@@ -390,7 +406,7 @@ class SellOrder(Order):
 
     def execOrder(self):
         # Reset order status
-        self.success = False
+        self._isOrderOpen = False
         # Reset order complete status
         self._isOrderComplete = False
 
@@ -407,11 +423,13 @@ class SellOrder(Order):
             self.logTradeResponse(response)
             # Return
             if response.get("success", False):
+                # Set order complete
                 self._isOrderComplete = True
-                self.success = True
+                # If limit order, set order open (market order does not remain "open"...)
+                if self._orderType == "LIMIT_SELL":
+                    self._isOrderOpen = True
                 return response["result"]["OrderId"]
             else:
-                self._isOrderComplete = True
                 return False
         else:
             log.critical("Invalid order prevented from execution for market " + self._marketName)

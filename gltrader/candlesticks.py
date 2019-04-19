@@ -160,13 +160,13 @@ class CandleSticks:
                                   "Error: " + str(error))
 
 
-            # Log some time fractions....
-            hrFraction = (self.timeNow - self.lastHourCandles[-1]["LT"]).seconds/SECONDS_PER_HOUR
-            tickFraction = (self.timeNow - self.localCandleTimestamp).seconds/SECONDS_PER_HOUR
-            tickFraction *= self.nrCandlesPerHour
-            log.info("Curr Hr: {:6.3f}".format(hrFraction) +
-                     ", Curr Tick: {:6.3f}".format(tickFraction) +
-                     ", Curr candle LT: " + str(self.currentCandle["LT"]))
+            # # Log some time fractions....
+            # hrFraction = (self.timeNow - self.lastHourCandles[-1]["LT"]).seconds/SECONDS_PER_HOUR
+            # tickFraction = (self.timeNow - self.localCandleTimestamp).seconds/SECONDS_PER_HOUR
+            # tickFraction *= self.nrCandlesPerHour
+            # log.info("Curr Hr: {:6.3f}".format(hrFraction) +
+            #          ", Curr Tick: {:6.3f}".format(tickFraction) +
+            #          ", Curr candle LT: " + str(self.currentCandle["LT"]))
 
 
 

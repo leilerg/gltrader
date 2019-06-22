@@ -16,27 +16,17 @@ from .notification import *
 class Strategy(object):
 
     # Set default strategy name
-    strName = "Invalid Strategy"
+    stratName = "Invalid Strategy"
     
 
-    def __init__(self, market, appConfig, tradeAPI):
+    def __init__(self, market, btcBalance, appConfig, tradeAPI):
         self.market = market
+        self.btcBalance = btcBalance
         self.tradeAPI = tradeAPI
         self.trader = App.get_running_app().trader
         self.action = False
-        self.config = {}
-        if not appConfig.get("strategies", False):
-            raise ValueError("Config file must contain entry for this strategy")
-            sys.exit("invalid config file")
-        for key, value in appConfig.items():
-            if key != "currencies" and key != "strategies":
-                self.config[key] = value
-        for key, value in appConfig["strategies"].get(self.strName, {}).items():
-            self.config[key] = value
-        if appConfig.get("strategies", False):
-            if appConfig["strategies"].get(self.strName, False):
-                for key, value in self.market.config.get("strategies", {}).items():
-                    self.config[key] = value
+        self.config = getStrategyConfigOverrides(appConfig)
+        
 
 
     # :FIX ME: Execute strategy with available balance, to check if enough money is available
@@ -44,8 +34,8 @@ class Strategy(object):
     # the balance is updated, i.e. a trade executed successfully
     def execute(self):
         # Check that the strategy has a valid name
-        if self.strName == "Invalid Strategy":
-            log.critical("Strategy must not use default name - '" + self.strName
+        if self.stratName == "Invalid Strategy":
+            log.critical("Strategy must not use default name - '" + self.stratName
                          + "' - Not executing")
             return None
 
@@ -58,17 +48,18 @@ class Strategy(object):
                 if self.trader.tradelock.acquire(False):
                     # Evaluate strategy
                     self.action = self.run()
-                        
-                    if self.action:
+
+                    if self.action is not None:
                         self.trader.trades_per_tick = self.trader.trades_per_tick + 1
-                        self.note = Info("Action: "+str(self.action), self.action)
+                        self.note = Info("Action: " + str(self.action), self.action)
                         self.notified = True
                         if self.config["do_actions"]:
                             # Trade is executed HERE!!!
-                            self.action.do()
+                            openOrders = self.action.do()
                             # Reset timestamp for this (market, strategy) pair
                             if self.action.success:
-                                self.market.resetLastTradeTime(self.strName)
+                                # Timestamp market with strategy and time of trade
+                                self.market.resetLastTradeTime(self.stratName)
                             self.note.refreshWidget()
                     self.trader.tradelock.release()
 
@@ -82,15 +73,35 @@ class Strategy(object):
                 self.notified = False
                 self.note = False
 
-
-
                 
     def name(self):
         #===============================================
         # :returns: (string) - The name of the strategy
         #===============================================
-        return self.strName
+        return self.stratName
 
+
+    def getStrategyConfigOverrides(masterConfig):
+        #===========================================================================================
+        # :returns: (dict) - A configuration dictionary where the global settings have been
+        #                    overridden for a specific strategy
+        #===========================================================================================
+        config = {}
+        if not masterConfig.get("strategies", False):
+            raise ValueError("Config file must contain entry for this strategy")
+            sys.exit("invalid config file")
+        for key, value in masterConfig.items():
+            if key != "currencies" and key != "strategies":
+                config[key] = value
+        for key, value in masterConfig["strategies"].get(self.stratName, {}).items():
+            config[key] = value
+        if masterConfig.get("strategies", False):
+            if masterConfig["strategies"].get(self.stratName, False):
+                for key, value in self.market.config.get("strategies", {}).items():
+                    config[key] = value
+        return config
+        
+        
                 
                     
     # # :FIX ME: Execute strategy with available balance, to check if enough money is available

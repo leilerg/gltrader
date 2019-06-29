@@ -19,11 +19,11 @@ class Strategy(object):
     stratName = "Invalid Strategy"
     
 
-    def __init__(self, market, btcBalance, appConfig, tradeAPI):
-        self.market = market
+    def __init__(self, market, btcBalance, appConfig, tradeAPI, tradelock):
+        self.market     = market
         self.btcBalance = btcBalance
-        self.tradeAPI = tradeAPI
-        self.trader = App.get_running_app().trader
+        self.tradeAPI   = tradeAPI
+        self.tradelock  = tradelock
         self.action = False
         self.config = getStrategyConfigOverrides(appConfig)
         
@@ -44,13 +44,11 @@ class Strategy(object):
         # Default option: DO NOT run the strategy, and check the strategy has a valid name
         if self.config.get("run", False):
             if not self.action:
-                #print("Check - Trade per tick: Pass")
-                if self.trader.tradelock.acquire(False):
+                if self.tradelock.acquire(False):
                     # Evaluate strategy
                     self.action = self.run()
 
                     if self.action is not None:
-                        self.trader.trades_per_tick = self.trader.trades_per_tick + 1
                         self.note = Info("Action: " + str(self.action), self.action)
                         self.notified = True
                         if self.config["do_actions"]:
@@ -61,7 +59,7 @@ class Strategy(object):
                                 # Timestamp market with strategy and time of trade
                                 self.market.resetLastTradeTime(self.stratName)
                             self.note.refreshWidget()
-                    self.trader.tradelock.release()
+                    self.tradelock.release()
 
 
     def refresh(self):
